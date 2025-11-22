@@ -33,18 +33,13 @@ func runMigrations() error {
 
 	migrationPath := "db/migrations/001_init_schema.sql"
 	if _, err := os.Stat(migrationPath); os.IsNotExist(err) {
-		// Try looking one level up if we are in cmd/
+		// Try looking one level up if we are in cmd/ (local dev)
 		migrationPath = "../db/migrations/001_init_schema.sql"
 	}
 
 	content, err := os.ReadFile(migrationPath)
 	if err != nil {
-		// Fallback for docker container where path might be absolute or different
-		migrationPath = "/app/backend/db/migrations/001_init_schema.sql"
-		content, err = os.ReadFile(migrationPath)
-		if err != nil {
-			return fmt.Errorf("could not read migration file: %v", err)
-		}
+		return fmt.Errorf("could not read migration file from %s: %v", migrationPath, err)
 	}
 
 	_, err = DB.Exec(string(content))
