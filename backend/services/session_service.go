@@ -79,7 +79,7 @@ func AddTimeslot(sessionID string, req models.TimeslotRequest) (*models.Timeslot
 		return nil, err
 	}
 	if count > 0 {
-		return nil, fmt.Errorf("timeslot already exists")
+		return nil, fmt.Errorf("این زمان قبلاً ثبت شده است")
 	}
 
 	tsID := uuid.New().String()
