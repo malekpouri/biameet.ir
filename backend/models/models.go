@@ -1,13 +1,21 @@
 package models
 
 type Session struct {
-	ID            string     `json:"id"`
-	Title         string     `json:"title"`
-	CreatorName   string     `json:"creator_name"`
-	CreatedAtUTC  string     `json:"created_at_utc"`
-	ExpiresAtUTC  string     `json:"expires_at_utc,omitempty"`
-	ArchivedAtUTC string     `json:"archived_at_utc,omitempty"`
-	Timeslots     []Timeslot `json:"timeslots,omitempty"`
+	ID            string         `json:"id"`
+	Title         string         `json:"title"`
+	CreatorName   string         `json:"creator_name"`
+	CreatedAtUTC  string         `json:"created_at_utc"`
+	ExpiresAtUTC  string         `json:"expires_at_utc,omitempty"`
+	ArchivedAtUTC string         `json:"archived_at_utc,omitempty"`
+	Timeslots     []Timeslot     `json:"timeslots,omitempty"`
+	Type          string         `json:"type"`                      // "fixed" or "dynamic"
+	DynamicConfig *DynamicConfig `json:"dynamic_config,omitempty"`
+}
+
+type DynamicConfig struct {
+	DateUTC string `json:"date_utc"`
+	MinTime string `json:"min_time"` // "HH:MM"
+	MaxTime string `json:"max_time"` // "HH:MM"
 }
 
 type Timeslot struct {
@@ -27,9 +35,11 @@ type Vote struct {
 }
 
 type CreateSessionRequest struct {
-	Title       string            `json:"title"`
-	CreatorName string            `json:"creator_name"`
-	Timeslots   []TimeslotRequest `json:"timeslots"`
+	Title         string            `json:"title"`
+	CreatorName   string            `json:"creator_name"`
+	Timeslots     []TimeslotRequest `json:"timeslots"`
+	Type          string            `json:"type"`
+	DynamicConfig *DynamicConfig    `json:"dynamic_config,omitempty"`
 }
 
 type TimeslotRequest struct {

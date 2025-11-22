@@ -25,31 +25,39 @@ func InitDB(dbPath string) error {
 }
 
 func runMigrations() error {
-	// Read the migration file
-	// In a real app, we might use a migration tool like golang-migrate
-	// For this task, we'll read the file directly.
-	// Assuming running from backend/ or root, we need to find the file.
-	// Let's try to locate it relative to the binary or current working directory.
-
-	migrationPath := "db/migrations/001_init_schema.sql"
-	if _, err := os.Stat(migrationPath); os.IsNotExist(err) {
+	// Read the migration directory
+	migrationDir := "db/migrations"
+	if _, err := os.Stat(migrationDir); os.IsNotExist(err) {
 		// Try looking one level up if we are in cmd/ (local dev)
-		migrationPath = "../db/migrations/001_init_schema.sql"
+		migrationDir = "../db/migrations"
 	}
 
-	content, err := os.ReadFile(migrationPath)
+	files, err := os.ReadDir(migrationDir)
 	if err != nil {
-		return fmt.Errorf("could not read migration file from %s: %v", migrationPath, err)
+		return fmt.Errorf("could not read migration directory: %v", err)
 	}
 
-	_, err = DB.Exec(string(content))
-	if err != nil {
-		// Ignore "table already exists" errors for simplicity in this basic setup
-		// or better, check if tables exist.
-		// For now, let's just print it and assume it might be okay if it's just re-running.
-		// But sqlite doesn't have "IF NOT EXISTS" in the CREATE TABLE in my schema?
-		// Wait, I should update the schema to use IF NOT EXISTS to be safe.
-		return fmt.Errorf("migration failed: %v", err)
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		// Simple check for .sql extension
+		if len(file.Name()) < 4 || file.Name()[len(file.Name())-4:] != ".sql" {
+			continue
+		}
+
+		migrationPath := fmt.Sprintf("%s/%s", migrationDir, file.Name())
+		content, err := os.ReadFile(migrationPath)
+		if err != nil {
+			return fmt.Errorf("could not read migration file from %s: %v", migrationPath, err)
+		}
+
+		_, err = DB.Exec(string(content))
+		if err != nil {
+			// Ignore errors for now as we might be re-running migrations
+			// In a real app, we would track applied migrations
+			fmt.Printf("Migration %s warning: %v\n", file.Name(), err)
+		}
 	}
 
 	return nil

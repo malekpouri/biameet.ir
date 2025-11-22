@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"time"
 
 	"biameet.ir/db"
@@ -19,11 +20,27 @@ func CreateSession(req models.CreateSessionRequest) (*models.CreateSessionRespon
 	}
 	defer tx.Rollback()
 
+	// Serialize DynamicConfig
+	var dynamicConfigJSON string
+	if req.DynamicConfig != nil {
+		bytes, err := json.Marshal(req.DynamicConfig)
+		if err != nil {
+			return nil, err
+		}
+		dynamicConfigJSON = string(bytes)
+	}
+
+	// Default type if empty
+	sessionType := req.Type
+	if sessionType == "" {
+		sessionType = "fixed"
+	}
+
 	// Insert Session
 	_, err = tx.Exec(`
-		INSERT INTO sessions (id, title, creator_name, created_at_utc)
-		VALUES (?, ?, ?, ?)
-	`, sessionID, req.Title, req.CreatorName, createdAt)
+		INSERT INTO sessions (id, title, creator_name, created_at_utc, type, dynamic_config)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, sessionID, req.Title, req.CreatorName, createdAt, sessionType, dynamicConfigJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -47,5 +64,24 @@ func CreateSession(req models.CreateSessionRequest) (*models.CreateSessionRespon
 	return &models.CreateSessionResponse{
 		ID:   sessionID,
 		Link: "/sessions/" + sessionID, // Frontend route
+	}, nil
+}
+
+func AddTimeslot(sessionID string, req models.TimeslotRequest) (*models.Timeslot, error) {
+	tsID := uuid.New().String()
+	
+	_, err := db.DB.Exec(`
+		INSERT INTO timeslots (id, session_id, start_utc, end_utc)
+		VALUES (?, ?, ?, ?)
+	`, tsID, sessionID, req.StartUTC, req.EndUTC)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.Timeslot{
+		ID:        tsID,
+		SessionID: sessionID,
+		StartUTC:  req.StartUTC,
+		EndUTC:    req.EndUTC,
 	}, nil
 }

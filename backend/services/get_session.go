@@ -2,6 +2,7 @@ package services
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 
 	"biameet.ir/db"
@@ -11,15 +12,16 @@ import (
 func GetSession(id string) (*models.Session, error) {
 	var session models.Session
 
-	var expiresAt, archivedAt sql.NullString
+	var expiresAt, archivedAt, dynamicConfigJSON sql.NullString
+	var sessionType sql.NullString
 
 	// 1. Get Session
 	err := db.DB.QueryRow(`
-		SELECT id, title, creator_name, created_at_utc, expires_at_utc, archived_at_utc
+		SELECT id, title, creator_name, created_at_utc, expires_at_utc, archived_at_utc, type, dynamic_config
 		FROM sessions WHERE id = ?
 	`, id).Scan(
 		&session.ID, &session.Title, &session.CreatorName, &session.CreatedAtUTC,
-		&expiresAt, &archivedAt,
+		&expiresAt, &archivedAt, &sessionType, &dynamicConfigJSON,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -33,6 +35,15 @@ func GetSession(id string) (*models.Session, error) {
 	}
 	if archivedAt.Valid {
 		session.ArchivedAtUTC = archivedAt.String
+	}
+	if sessionType.Valid {
+		session.Type = sessionType.String
+	}
+	if dynamicConfigJSON.Valid && dynamicConfigJSON.String != "" {
+		var config models.DynamicConfig
+		if err := json.Unmarshal([]byte(dynamicConfigJSON.String), &config); err == nil {
+			session.DynamicConfig = &config
+		}
 	}
 
 	// 2. Get Timeslots

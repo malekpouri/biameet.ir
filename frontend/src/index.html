@@ -31,6 +31,17 @@
     </footer>
     
     <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/jalaali-js/dist/jalaali.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/utc.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/timezone.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/jalali.js"></script>
+    <script>
+        dayjs.extend(window.dayjs_plugin_utc);
+        dayjs.extend(window.dayjs_plugin_timezone);
+        // dayjs-jalali plugin might need different loading or just use jalaali-js directly for simplicity
+        // actually let's stick to jalaali-js for conversion and native Date/dayjs for time
+    </script>
     <script src="./app.js"></script>
 </body>
 </html>

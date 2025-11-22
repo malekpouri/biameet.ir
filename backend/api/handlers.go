@@ -20,10 +20,25 @@ func CreateSessionHandler(c *fiber.Ctx) error {
 			"error": "Title and Creator Name are required",
 		})
 	}
-	if len(req.Timeslots) == 0 {
+	
+	// Validation for fixed type
+	if req.Type != "dynamic" && len(req.Timeslots) == 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "At least one timeslot is required",
+			"error": "At least one timeslot is required for fixed sessions",
 		})
+	}
+	// Validation for dynamic type
+	if req.Type == "dynamic" {
+		if req.DynamicConfig == nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Dynamic config is required for dynamic sessions",
+			})
+		}
+		if req.DynamicConfig.DateUTC == "" || req.DynamicConfig.MinTime == "" || req.DynamicConfig.MaxTime == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Date, MinTime, and MaxTime are required for dynamic sessions",
+			})
+		}
 	}
 
 	resp, err := services.CreateSession(req)
@@ -34,6 +49,40 @@ func CreateSessionHandler(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(resp)
+}
+
+func AddTimeslotHandler(c *fiber.Ctx) error {
+	id := c.Params("id")
+	if id == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Session ID is required",
+		})
+	}
+
+	var req models.TimeslotRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	if req.StartUTC == "" || req.EndUTC == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Start and End times are required",
+		})
+	}
+
+	// TODO: Validate if timeslot is within dynamic session limits (can be done here or service)
+	// For now, we trust the frontend or add simple validation later.
+
+	ts, err := services.AddTimeslot(id, req)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(ts)
 }
 
 func GetSessionHandler(c *fiber.Ctx) error {
