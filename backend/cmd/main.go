@@ -37,6 +37,7 @@ func main() {
 	v1 := app.Group("/api/v1")
 	v1.Post("/sessions", api.CreateSessionHandler)
 	v1.Get("/sessions/:id", api.GetSessionHandler)
+	v1.Post("/sessions/:id/vote", api.VoteHandler)
 
 	// Start server
 	port := os.Getenv("PORT")
