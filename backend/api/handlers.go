@@ -35,3 +35,26 @@ func CreateSessionHandler(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusCreated).JSON(resp)
 }
+
+func GetSessionHandler(c *fiber.Ctx) error {
+	id := c.Params("id")
+	if id == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Session ID is required",
+		})
+	}
+
+	session, err := services.GetSession(id)
+	if err != nil {
+		if err.Error() == "session not found" {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Session not found",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(session)
+}

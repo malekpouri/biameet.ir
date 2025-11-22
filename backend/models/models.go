@@ -15,6 +15,15 @@ type Timeslot struct {
 	SessionID string `json:"session_id"`
 	StartUTC  string `json:"start_utc"`
 	EndUTC    string `json:"end_utc"`
+	Votes     []Vote `json:"votes,omitempty"` // Added Votes
+}
+
+type Vote struct {
+	ID           string `json:"id"`
+	TimeslotID   string `json:"timeslot_id"`
+	VoterName    string `json:"voter_name"`
+	Note         string `json:"note,omitempty"`
+	CreatedAtUTC string `json:"created_at_utc"`
 }
 
 type CreateSessionRequest struct {
