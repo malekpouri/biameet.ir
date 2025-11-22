@@ -327,11 +327,11 @@ function renderCreateSessionForm() {
                 <div class="flex gap-4 mb-4 bg-gray-50 p-2 rounded">
                     <label class="flex items-center gap-2 cursor-pointer flex-1 justify-center">
                         <input type="radio" name="sessionType" value="fixed" checked onchange="toggleSessionType('fixed')">
-                        <span class="text-sm font-medium">چند زمانه (Fixed)</span>
+                        <span class="text-sm font-medium">چند زمانه</span>
                     </label>
                     <label class="flex items-center gap-2 cursor-pointer flex-1 justify-center">
                         <input type="radio" name="sessionType" value="dynamic" onchange="toggleSessionType('dynamic')">
-                        <span class="text-sm font-medium">تک روز (Dynamic)</span>
+                        <span class="text-sm font-medium">تک روز</span>
                     </label>
                 </div>
 
@@ -495,45 +495,8 @@ window.submitCreateSession = async function () {
 
 // Init
 const id = getSessionIDFromURL();
-if (window.location.pathname === '/admin') {
-    renderAdminDashboard();
-} else if (id) {
+if (id) {
     fetchSession(id);
 } else {
     renderCreateSessionForm();
-}
-
-async function renderAdminDashboard() {
-    try {
-        const res = await fetch(`${API_BASE}/admin/stats`);
-        if (!res.ok) throw new Error('Failed to fetch stats');
-        const stats = await res.json();
-
-        app.innerHTML = `
-            <div class="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow">
-                <h2 class="text-3xl font-bold mb-8 text-gray-800 text-center">پنل مدیریت</h2>
-                
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div class="bg-blue-50 p-6 rounded-lg border border-blue-100 text-center">
-                        <div class="text-4xl font-bold text-blue-600 mb-2">${stats.total_sessions}</div>
-                        <div class="text-gray-600">کل جلسات</div>
-                    </div>
-                    <div class="bg-green-50 p-6 rounded-lg border border-green-100 text-center">
-                        <div class="text-4xl font-bold text-green-600 mb-2">${stats.total_timeslots}</div>
-                        <div class="text-gray-600">کل زمان‌ها</div>
-                    </div>
-                    <div class="bg-purple-50 p-6 rounded-lg border border-purple-100 text-center">
-                        <div class="text-4xl font-bold text-purple-600 mb-2">${stats.total_votes}</div>
-                        <div class="text-gray-600">کل آرا</div>
-                    </div>
-                </div>
-
-                <div class="text-center">
-                    <a href="/" class="text-blue-600 hover:underline">بازگشت به صفحه اصلی</a>
-                </div>
-            </div>
-        `;
-    } catch (err) {
-        app.innerHTML = `<div class="text-red-500 text-center mt-10">خطا در دریافت اطلاعات: ${err.message}</div>`;
-    }
 }
