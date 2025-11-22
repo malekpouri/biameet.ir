@@ -11,7 +11,7 @@ import (
 	"biameet.ir/models"
 	"biameet.ir/services"
 	"github.com/gofiber/fiber/v2"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 func setupGetApp() *fiber.App {
