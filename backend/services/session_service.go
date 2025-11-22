@@ -2,6 +2,7 @@ package services
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"biameet.ir/db"
@@ -68,9 +69,22 @@ func CreateSession(req models.CreateSessionRequest) (*models.CreateSessionRespon
 }
 
 func AddTimeslot(sessionID string, req models.TimeslotRequest) (*models.Timeslot, error) {
+	// Check for duplicates
+	var count int
+	err := db.DB.QueryRow(`
+		SELECT COUNT(*) FROM timeslots 
+		WHERE session_id = ? AND start_utc = ? AND end_utc = ?
+	`, sessionID, req.StartUTC, req.EndUTC).Scan(&count)
+	if err != nil {
+		return nil, err
+	}
+	if count > 0 {
+		return nil, fmt.Errorf("timeslot already exists")
+	}
+
 	tsID := uuid.New().String()
-	
-	_, err := db.DB.Exec(`
+
+	_, err = db.DB.Exec(`
 		INSERT INTO timeslots (id, session_id, start_utc, end_utc)
 		VALUES (?, ?, ?, ?)
 	`, tsID, sessionID, req.StartUTC, req.EndUTC)

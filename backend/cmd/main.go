@@ -39,6 +39,7 @@ func main() {
 	v1.Get("/sessions/:id", api.GetSessionHandler)
 	v1.Post("/sessions/:id/vote", api.VoteHandler)
 	v1.Post("/sessions/:id/timeslots", api.AddTimeslotHandler)
+	v1.Get("/admin/stats", api.GetAdminStatsHandler)
 
 	// Start server
 	port := os.Getenv("PORT")
