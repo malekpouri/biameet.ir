@@ -154,14 +154,7 @@ window.toggleTimeslot = function(id) {
     renderSession();
 };
 
-// Init
-const id = getSessionIDFromURL();
-if (id) {
-    fetchSession(id);
-} else {
-    // Show Create Session Form
-    renderCreateSessionForm();
-}
+
 
 function renderCreateSessionForm() {
     app.innerHTML = `
@@ -272,3 +265,12 @@ window.submitCreateSession = async function() {
         alert(err.message);
     }
 };
+
+// Init
+const id = getSessionIDFromURL();
+if (id) {
+    fetchSession(id);
+} else {
+    // Show Create Session Form
+    renderCreateSessionForm();
+}
