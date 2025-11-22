@@ -1,5 +1,5 @@
 -- Up
-CREATE TABLE sessions (
+CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     creator_name TEXT NOT NULL,
@@ -8,7 +8,7 @@ CREATE TABLE sessions (
     archived_at_utc TEXT
 );
 
-CREATE TABLE timeslots (
+CREATE TABLE IF NOT EXISTS timeslots (
     id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
     start_utc TEXT NOT NULL,
@@ -16,7 +16,7 @@ CREATE TABLE timeslots (
     FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE
 );
 
-CREATE TABLE votes (
+CREATE TABLE IF NOT EXISTS votes (
     id TEXT PRIMARY KEY,
     timeslot_id TEXT NOT NULL,
     voter_name TEXT NOT NULL,
@@ -26,7 +26,4 @@ CREATE TABLE votes (
     UNIQUE(timeslot_id, voter_name)
 );
 
--- Down
-DROP TABLE votes;
-DROP TABLE timeslots;
-DROP TABLE sessions;
+
