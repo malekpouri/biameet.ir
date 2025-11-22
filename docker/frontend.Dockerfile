@@ -19,6 +19,7 @@ RUN cp src/index.html dist/ && cp src/app.js dist/
 FROM nginx:alpine
 
 COPY --from=builder /app/dist /usr/share/nginx/html
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 # Optional: Copy custom nginx config if needed
 # COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 
