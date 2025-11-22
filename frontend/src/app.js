@@ -11,9 +11,7 @@ const app = document.getElementById('app');
 // Utils
 function getSessionIDFromURL() {
     const path = window.location.pathname;
-    // Remove leading slash
     const id = path.substring(1);
-    // Basic validation: 5 chars alphanumeric
     if (id && /^[a-zA-Z0-9]{5}$/.test(id)) {
         return id;
     }
@@ -34,6 +32,81 @@ function formatTime(utcDateString) {
     return date.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
+// UI Helpers
+function getJalaliMonths() {
+    return ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
+}
+
+function renderJalaliDatePicker(prefix, defaultDate = new Date()) {
+    const j = jalaali.toJalaali(defaultDate);
+    const months = getJalaliMonths();
+
+    let daysOpts = '';
+    for (let i = 1; i <= 31; i++) daysOpts += `<option value="${i}" ${i === j.jd ? 'selected' : ''}>${i}</option>`;
+
+    let monthsOpts = '';
+    months.forEach((m, i) => {
+        monthsOpts += `<option value="${i + 1}" ${i + 1 === j.jm ? 'selected' : ''}>${m}</option>`;
+    });
+
+    let yearsOpts = '';
+    const currentYear = j.jy;
+    for (let i = currentYear; i <= currentYear + 1; i++) yearsOpts += `<option value="${i}" ${i === j.jy ? 'selected' : ''}>${i}</option>`;
+
+    return `
+        <div class="flex gap-1 items-center" dir="rtl">
+            <select id="${prefix}_day" class="p-2 border rounded bg-white text-center text-sm flex-1">${daysOpts}</select>
+            <select id="${prefix}_month" class="p-2 border rounded bg-white text-center text-sm flex-1">${monthsOpts}</select>
+            <select id="${prefix}_year" class="p-2 border rounded bg-white text-center text-sm flex-1">${yearsOpts}</select>
+        </div>
+    `;
+}
+
+function renderTimePicker(prefix, defaultHour = 9, defaultMinute = 0) {
+    let hourOpts = '';
+    for (let i = 0; i < 24; i++) {
+        const val = String(i).padStart(2, '0');
+        hourOpts += `<option value="${val}" ${i === defaultHour ? 'selected' : ''}>${val}</option>`;
+    }
+
+    let minOpts = '';
+    for (let i = 0; i < 60; i += 15) {
+        const val = String(i).padStart(2, '0');
+        minOpts += `<option value="${val}" ${i === defaultMinute ? 'selected' : ''}>${val}</option>`;
+    }
+
+    return `
+        <div class="flex gap-1 items-center justify-center bg-white border rounded p-1" dir="ltr">
+            <select id="${prefix}_hour" class="p-1 bg-transparent text-center font-mono w-12 outline-none">${hourOpts}</select>
+            <span class="text-gray-500">:</span>
+            <select id="${prefix}_minute" class="p-1 bg-transparent text-center font-mono w-12 outline-none">${minOpts}</select>
+        </div>
+    `;
+}
+
+function getJalaliDateFromPicker(prefix) {
+    const y = parseInt(document.getElementById(`${prefix}_year`).value);
+    const m = parseInt(document.getElementById(`${prefix}_month`).value);
+    const d = parseInt(document.getElementById(`${prefix}_day`).value);
+    return { y, m, d };
+}
+
+function getTimeFromPicker(prefix) {
+    const h = document.getElementById(`${prefix}_hour`).value;
+    const m = document.getElementById(`${prefix}_minute`).value;
+    return `${h}:${m}`;
+}
+
+function jalaliToISO(jDate, timeStr) {
+    const g = jalaali.toGregorian(jDate.y, jDate.m, jDate.d);
+    // Time is HH:MM
+    const [h, m] = timeStr.split(':').map(Number);
+    // Create Date object (local time)
+    const date = new Date(g.gy, g.gm - 1, g.gd, h, m);
+    return date.toISOString();
+}
+
+// API Calls
 async function fetchSession(id) {
     try {
         const res = await fetch(`${API_BASE}/sessions/${id}`);
@@ -57,7 +130,7 @@ async function submitVote() {
 
     const votes = Array.from(selectedTimeslots).map(id => ({
         timeslot_id: id,
-        note: 'Yes' // Simple Yes vote for now
+        note: 'Yes'
     }));
 
     try {
@@ -88,7 +161,6 @@ function renderSession() {
 
     const { title, creator_name, timeslots = [], type, dynamic_config } = sessionData;
 
-    // Calculate votes per timeslot
     const voteCounts = {};
     timeslots.forEach(ts => {
         voteCounts[ts.id] = (ts.votes || []).length;
@@ -115,17 +187,20 @@ function renderSession() {
         dynamicInput = `
             <div class="mt-8 border-t pt-6">
                 <h3 class="font-semibold text-gray-700 mb-4">پیشنهاد زمان جدید</h3>
-                <div class="flex gap-2 items-end bg-gray-50 p-3 rounded border">
-                    <div class="flex-1">
-                        <label class="text-xs text-gray-500 block mb-1">از ساعت</label>
-                        <input type="time" id="dynamicStart" class="w-full p-2 border rounded text-sm">
+                <div class="bg-gray-50 p-4 rounded border">
+                    <div class="flex gap-4 items-center justify-center mb-4">
+                        <div class="flex flex-col items-center">
+                            <span class="text-xs text-gray-500 mb-1">از ساعت</span>
+                            ${renderTimePicker('dynamic_start', 10, 0)}
+                        </div>
+                        <div class="text-gray-400 mt-4">←</div>
+                        <div class="flex flex-col items-center">
+                            <span class="text-xs text-gray-500 mb-1">تا ساعت</span>
+                            ${renderTimePicker('dynamic_end', 11, 0)}
+                        </div>
                     </div>
-                    <div class="flex-1">
-                        <label class="text-xs text-gray-500 block mb-1">تا ساعت</label>
-                        <input type="time" id="dynamicEnd" class="w-full p-2 border rounded text-sm">
-                    </div>
-                    <button onclick="submitDynamicTimeslot()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm">
-                        افزودن
+                    <button onclick="submitDynamicTimeslot()" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 text-sm font-bold">
+                        افزودن زمان
                     </button>
                 </div>
             </div>
@@ -179,7 +254,6 @@ function renderSession() {
         </div>
     `;
 
-    // Re-attach event listener for input since we re-rendered
     document.getElementById('voterNameInput').value = voterName;
     document.getElementById('voterNameInput').addEventListener('input', (e) => {
         voterName = e.target.value;
@@ -197,37 +271,21 @@ window.toggleTimeslot = function (id) {
 };
 
 window.submitDynamicTimeslot = async function () {
-    const start = document.getElementById('dynamicStart').value;
-    const end = document.getElementById('dynamicEnd').value;
-
-    if (!start || !end) {
-        alert('لطفاً ساعت شروع و پایان را وارد کنید');
-        return;
-    }
+    const start = getTimeFromPicker('dynamic_start');
+    const end = getTimeFromPicker('dynamic_end');
 
     // Construct dates
-    // We use the session date (UTC) to get the YYYY-MM-DD
     const sessionDate = new Date(sessionData.dynamic_config.date_utc);
-    // Format to YYYY-MM-DD
     const yyyy = sessionDate.getFullYear();
     const mm = String(sessionDate.getMonth() + 1).padStart(2, '0');
     const dd = String(sessionDate.getDate()).padStart(2, '0');
     const dateStr = `${yyyy}-${mm}-${dd}`;
 
-    // Combine with time
     const startDateTimeStr = `${dateStr}T${start}:00`;
     const endDateTimeStr = `${dateStr}T${end}:00`;
 
-    // Convert to UTC
-    // We assume the user input is in local time (browser time), which should match the intended timezone
-    // Ideally we should use a specific timezone (Asia/Tehran) but for now browser time is the best proxy
     const startUTC = new Date(startDateTimeStr).toISOString();
     const endUTC = new Date(endDateTimeStr).toISOString();
-
-    // Basic validation against min/max time
-    // This is tricky because of timezone conversion.
-    // Let's skip strict client-side validation for now and let backend/logic handle it,
-    // or just trust the user input for this MVP.
 
     try {
         const res = await fetch(`${API_BASE}/sessions/${sessionData.id}/timeslots`, {
@@ -244,14 +302,11 @@ window.submitDynamicTimeslot = async function () {
             throw new Error(err.error || 'خطا در افزودن زمان');
         }
 
-        // Reload session
         fetchSession(sessionData.id);
     } catch (err) {
         alert(err.message);
     }
 };
-
-
 
 function renderCreateSessionForm() {
     app.innerHTML = `
@@ -269,44 +324,43 @@ function renderCreateSessionForm() {
                     <input type="text" id="creatorName" class="w-full p-2 border rounded" placeholder="نام شما">
                 </div>
 
-                <div class="flex gap-4 mb-4">
-                    <label class="flex items-center gap-2 cursor-pointer">
+                <div class="flex gap-4 mb-4 bg-gray-50 p-2 rounded">
+                    <label class="flex items-center gap-2 cursor-pointer flex-1 justify-center">
                         <input type="radio" name="sessionType" value="fixed" checked onchange="toggleSessionType('fixed')">
-                        <span>زمان‌های مشخص (Fixed)</span>
+                        <span class="text-sm font-medium">چند زمانه (Fixed)</span>
                     </label>
-                    <label class="flex items-center gap-2 cursor-pointer">
+                    <label class="flex items-center gap-2 cursor-pointer flex-1 justify-center">
                         <input type="radio" name="sessionType" value="dynamic" onchange="toggleSessionType('dynamic')">
-                        <span>انتخاب روز خاص (Dynamic)</span>
+                        <span class="text-sm font-medium">تک روز (Dynamic)</span>
                     </label>
                 </div>
 
                 <!-- Fixed Times Section -->
                 <div id="fixedTimeSection">
                     <label class="block text-sm font-medium text-gray-700 mb-2">زمان‌های پیشنهادی</label>
-                    <div id="timeslotsContainer" class="space-y-3">
+                    <div id="timeslotsContainer" class="space-y-4">
                         <!-- Timeslot inputs will go here -->
                     </div>
-                    <button onclick="addTimeslotInput()" class="mt-2 text-blue-600 text-sm hover:underline">+ افزودن زمان</button>
+                    <button onclick="addTimeslotInput()" class="mt-4 w-full border-2 border-dashed border-blue-300 text-blue-600 py-2 rounded hover:bg-blue-50 transition-colors">
+                        + افزودن زمان جدید
+                    </button>
                 </div>
 
                 <!-- Dynamic Time Section -->
                 <div id="dynamicTimeSection" class="hidden space-y-4 border p-4 rounded bg-blue-50">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">تاریخ جلسه (شمسی)</label>
-                        <div class="flex gap-2">
-                            <select id="jDay" class="p-2 border rounded flex-1"></select>
-                            <select id="jMonth" class="p-2 border rounded flex-1"></select>
-                            <select id="jYear" class="p-2 border rounded flex-1"></select>
-                        </div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">تاریخ جلسه</label>
+                        ${renderJalaliDatePicker('dyn_date')}
                     </div>
-                    <div class="flex gap-4">
-                        <div class="flex-1">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">از ساعت</label>
-                            <input type="time" id="minTime" class="w-full p-2 border rounded" value="09:00">
+                    <div class="flex gap-4 items-center justify-center">
+                        <div class="flex flex-col items-center">
+                            <span class="text-xs text-gray-500 mb-1">از ساعت</span>
+                            ${renderTimePicker('dyn_min', 9, 0)}
                         </div>
-                        <div class="flex-1">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">تا ساعت</label>
-                            <input type="time" id="maxTime" class="w-full p-2 border rounded" value="17:00">
+                        <div class="text-gray-400 mt-4">←</div>
+                        <div class="flex flex-col items-center">
+                            <span class="text-xs text-gray-500 mb-1">تا ساعت</span>
+                            ${renderTimePicker('dyn_max', 17, 0)}
                         </div>
                     </div>
                 </div>
@@ -318,34 +372,40 @@ function renderCreateSessionForm() {
         </div>
     `;
 
-    // Add initial timeslot input
     addTimeslotInput();
-    // Init Jalali options
-    generateJalaliOptions();
 }
 
 window.addTimeslotInput = function () {
     const container = document.getElementById('timeslotsContainer');
-    const id = Date.now();
+    const id = Date.now(); // Unique ID for this row
     const div = document.createElement('div');
-    div.className = 'flex gap-2 items-end bg-gray-50 p-3 rounded border';
+    div.className = 'bg-gray-50 p-3 rounded border relative';
+    div.dataset.id = id;
+
     div.innerHTML = `
-        <div class="flex-1">
-            <label class="text-xs text-gray-500 block mb-1">شروع</label>
-            <input type="datetime-local" class="ts-start w-full p-1 border rounded text-sm" required>
-        </div>
-        <div class="flex-1">
-            <label class="text-xs text-gray-500 block mb-1">پایان</label>
-            <input type="datetime-local" class="ts-end w-full p-1 border rounded text-sm" required>
-        </div>
-        <button onclick="this.parentElement.remove()" class="text-red-500 hover:text-red-700 p-1">
+        <button onclick="this.parentElement.remove()" class="absolute top-2 left-2 text-red-400 hover:text-red-600">
             &times;
         </button>
+        <div class="mb-3">
+            <label class="text-xs text-gray-500 block mb-1">تاریخ</label>
+            ${renderJalaliDatePicker(`ts_${id}_date`)}
+        </div>
+        <div class="flex gap-4 items-center justify-center">
+            <div class="flex flex-col items-center">
+                <span class="text-xs text-gray-500 mb-1">شروع</span>
+                ${renderTimePicker(`ts_${id}_start`, 10, 0)}
+            </div>
+            <div class="text-gray-400 mt-4">←</div>
+            <div class="flex flex-col items-center">
+                <span class="text-xs text-gray-500 mb-1">پایان</span>
+                ${renderTimePicker(`ts_${id}_end`, 11, 0)}
+            </div>
+        </div>
     `;
     container.appendChild(div);
 };
 
-function toggleSessionType(type) {
+window.toggleSessionType = function (type) {
     const fixedSection = document.getElementById('fixedTimeSection');
     const dynamicSection = document.getElementById('dynamicTimeSection');
 
@@ -356,46 +416,7 @@ function toggleSessionType(type) {
         fixedSection.classList.add('hidden');
         dynamicSection.classList.remove('hidden');
     }
-}
-
-function generateJalaliOptions() {
-    const yearSelect = document.getElementById('jYear');
-    const monthSelect = document.getElementById('jMonth');
-    const daySelect = document.getElementById('jDay');
-
-    // Current Jalali Year
-    const current = jalaali.toJalaali(new Date());
-
-    // Years: Current + 1
-    for (let y = current.jy; y <= current.jy + 1; y++) {
-        const opt = document.createElement('option');
-        opt.value = y;
-        opt.text = y;
-        yearSelect.add(opt);
-    }
-
-    // Months
-    const months = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
-    months.forEach((m, i) => {
-        const opt = document.createElement('option');
-        opt.value = i + 1;
-        opt.text = m;
-        monthSelect.add(opt);
-    });
-
-    // Days
-    for (let d = 1; d <= 31; d++) {
-        const opt = document.createElement('option');
-        opt.value = d;
-        opt.text = d;
-        daySelect.add(opt);
-    }
-
-    // Set defaults
-    yearSelect.value = current.jy;
-    monthSelect.value = current.jm;
-    daySelect.value = current.jd;
-}
+};
 
 window.submitCreateSession = async function () {
     const title = document.getElementById('sessionTitle').value;
@@ -415,19 +436,20 @@ window.submitCreateSession = async function () {
     };
 
     if (type === 'fixed') {
-        const startInputs = document.querySelectorAll('.ts-start');
-        const endInputs = document.querySelectorAll('.ts-end');
+        const rows = document.getElementById('timeslotsContainer').children;
+        for (let row of rows) {
+            const id = row.dataset.id;
+            const jDate = getJalaliDateFromPicker(`ts_${id}_date`);
+            const startTime = getTimeFromPicker(`ts_${id}_start`);
+            const endTime = getTimeFromPicker(`ts_${id}_end`);
 
-        for (let i = 0; i < startInputs.length; i++) {
-            const start = startInputs[i].value;
-            const end = endInputs[i].value;
+            const startISO = jalaliToISO(jDate, startTime);
+            const endISO = jalaliToISO(jDate, endTime);
 
-            if (start && end) {
-                payload.timeslots.push({
-                    start_utc: new Date(start).toISOString(),
-                    end_utc: new Date(end).toISOString()
-                });
-            }
+            payload.timeslots.push({
+                start_utc: startISO,
+                end_utc: endISO
+            });
         }
 
         if (payload.timeslots.length === 0) {
@@ -436,19 +458,13 @@ window.submitCreateSession = async function () {
         }
     } else {
         // Dynamic
-        const jy = parseInt(document.getElementById('jYear').value);
-        const jm = parseInt(document.getElementById('jMonth').value);
-        const jd = parseInt(document.getElementById('jDay').value);
-        const minTime = document.getElementById('minTime').value;
-        const maxTime = document.getElementById('maxTime').value;
+        const jDate = getJalaliDateFromPicker('dyn_date');
+        const minTime = getTimeFromPicker('dyn_min');
+        const maxTime = getTimeFromPicker('dyn_max');
 
-        // Convert Jalali to Gregorian for DateUTC
-        const g = jalaali.toGregorian(jy, jm, jd);
-        const date = new Date(g.gy, g.gm - 1, g.gd); // Month is 0-indexed in JS Date
-        // We want midnight UTC
-        // Actually, let's store it as ISO string of that date at 00:00 UTC?
-        // Or just YYYY-MM-DD? The backend expects string.
-        // Let's send ISO string of midnight UTC.
+        // Convert to UTC midnight for date_utc
+        // We use the same logic as before: Gregorian date at 00:00 UTC
+        const g = jalaali.toGregorian(jDate.y, jDate.m, jDate.d);
         const dateUTC = new Date(Date.UTC(g.gy, g.gm - 1, g.gd)).toISOString();
 
         payload.dynamic_config = {
@@ -471,7 +487,6 @@ window.submitCreateSession = async function () {
         }
 
         const data = await res.json();
-        // Redirect to session page
         window.location.href = `/${data.id}`;
     } catch (err) {
         alert(err.message);
@@ -483,6 +498,5 @@ const id = getSessionIDFromURL();
 if (id) {
     fetchSession(id);
 } else {
-    // Show Create Session Form
     renderCreateSessionForm();
 }
