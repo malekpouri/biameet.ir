@@ -11,13 +11,13 @@ const app = document.getElementById('app');
 // Utils
 function getSessionIDFromURL() {
     const path = window.location.pathname;
-    const parts = path.split('/');
-    // Assuming /sessions/:id or just query param ?id=...
-    // For this simple app, let's assume query param ?id=... for simplicity in static serving
-    // OR if using history api, we might need to parse path.
-    // Let's support ?id=... for now as it's easiest with static hosting.
-    const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get('id');
+    // Remove leading slash
+    const id = path.substring(1);
+    // Basic validation: 5 chars alphanumeric
+    if (id && /^[a-zA-Z0-9]{5}$/.test(id)) {
+        return id;
+    }
+    return null;
 }
 
 function formatJalali(utcDateString) {
@@ -260,7 +260,7 @@ window.submitCreateSession = async function() {
 
         const data = await res.json();
         // Redirect to session page
-        window.location.search = `?id=${data.id}`;
+        window.location.href = `/${data.id}`;
     } catch (err) {
         alert(err.message);
     }

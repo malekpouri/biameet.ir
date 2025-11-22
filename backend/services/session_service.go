@@ -5,11 +5,12 @@ import (
 
 	"biameet.ir/db"
 	"biameet.ir/models"
+	"biameet.ir/utils"
 	"github.com/google/uuid"
 )
 
 func CreateSession(req models.CreateSessionRequest) (*models.CreateSessionResponse, error) {
-	sessionID := uuid.New().String()
+	sessionID := utils.GenerateShortID(5)
 	createdAt := time.Now().UTC().Format(time.RFC3339)
 
 	tx, err := db.DB.Begin()
