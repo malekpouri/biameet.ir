@@ -32,6 +32,46 @@ function formatTime(utcDateString) {
     return date.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
+function showToast(message, type = 'info') {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 z-50 flex flex-col gap-2 w-full max-w-md px-4 pointer-events-none';
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    // Colors based on type
+    let bgClass = 'bg-blue-600';
+    if (type === 'success') bgClass = 'bg-green-600';
+    if (type === 'error') bgClass = 'bg-red-600';
+    if (type === 'warning') bgClass = 'bg-amber-500';
+
+    toast.className = `${bgClass} text-white px-6 py-4 rounded-xl shadow-2xl flex items-center justify-between transform transition-all duration-500 translate-y-[-50px] opacity-0 pointer-events-auto backdrop-blur-sm bg-opacity-95 border border-white/10`;
+    toast.innerHTML = `
+        <div class="flex items-center gap-3">
+            ${type === 'success' ? '<span class="text-xl">✓</span>' : ''}
+            ${type === 'error' ? '<span class="text-xl">✕</span>' : ''}
+            ${type === 'warning' ? '<span class="text-xl">⚠</span>' : ''}
+            <span class="font-bold text-sm font-vazir">${message}</span>
+        </div>
+    `;
+
+    container.appendChild(toast);
+
+    // Animate in
+    requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-[-50px]', 'opacity-0');
+    });
+
+    // Remove after 4s
+    setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-[-50px]');
+        setTimeout(() => toast.remove(), 500);
+    }, 4000);
+}
+
 // UI Helpers
 function getJalaliMonths() {
     return ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
@@ -120,11 +160,11 @@ async function fetchSession(id) {
 
 async function submitVote() {
     if (!voterName) {
-        alert('لطفاً نام خود را وارد کنید');
+        showToast('لطفاً نام خود را وارد کنید', 'error');
         return;
     }
     if (selectedTimeslots.size === 0) {
-        alert('لطفاً حداقل یک زمان را انتخاب کنید');
+        showToast('لطفاً حداقل یک زمان را انتخاب کنید', 'warning');
         return;
     }
 
@@ -148,10 +188,10 @@ async function submitVote() {
             throw new Error(err.error || 'خطا در ثبت رای');
         }
 
-        alert('رای شما با موفقیت ثبت شد');
-        window.location.reload();
+        showToast('رای شما با موفقیت ثبت شد', 'success');
+        setTimeout(() => window.location.reload(), 1500);
     } catch (err) {
-        alert(err.message);
+        showToast(err.message, 'error');
     }
 }
 
@@ -230,17 +270,23 @@ function renderSession() {
         return `
                     <div class="timeslot-card border rounded p-3 cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 border-blue-500' : 'hover:bg-gray-50'}"
                          onclick="toggleTimeslot('${ts.id}')">
-                        <div class="flex justify-between items-center">
+                        <div class="flex justify-between items-center mb-2">
                             <div>
                                 <div class="font-bold text-gray-800">${formatTime(ts.start_utc)} - ${formatTime(ts.end_utc)}</div>
                             </div>
                             <div class="flex items-center space-x-2 space-x-reverse">
-                                <span class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs" title="${voters}">
+                                <span class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs">
                                     ${count} رای
                                 </span>
                                 ${isSelected ? '<span class="text-blue-600">✓</span>' : ''}
                             </div>
                         </div>
+                        ${voters ? `
+                        <div class="text-xs text-gray-500 border-t pt-2 mt-1">
+                            <span class="font-semibold ml-1">موافقین:</span>
+                            ${voters}
+                        </div>
+                        ` : ''}
                     </div>
                     `;
     }).join('')}
@@ -303,8 +349,9 @@ window.submitDynamicTimeslot = async function () {
         }
 
         fetchSession(sessionData.id);
+        showToast('زمان جدید با موفقیت اضافه شد', 'success');
     } catch (err) {
-        alert(err.message);
+        showToast(err.message, 'error');
     }
 };
 
@@ -424,7 +471,7 @@ window.submitCreateSession = async function () {
     const type = document.querySelector('input[name="sessionType"]:checked').value;
 
     if (!title || !creatorName) {
-        alert('لطفاً عنوان و نام خود را وارد کنید');
+        showToast('لطفاً عنوان و نام خود را وارد کنید', 'error');
         return;
     }
 
@@ -452,8 +499,8 @@ window.submitCreateSession = async function () {
             });
         }
 
-        if (payload.timeslots.length === 0) {
-            alert('لطفاً حداقل یک زمان را مشخص کنید');
+        if (payload.timeslots.length < 2) {
+            showToast('لطفاً حداقل دو زمان را مشخص کنید تا کاربران حق انتخاب داشته باشند', 'warning');
             return;
         }
     } else {
@@ -489,14 +536,61 @@ window.submitCreateSession = async function () {
         const data = await res.json();
         window.location.href = `/${data.id}`;
     } catch (err) {
-        alert(err.message);
+        showToast(err.message, 'error');
     }
 };
 
+function renderAdminDashboard(stats) {
+    app.innerHTML = `
+        <div class="max-w-4xl mx-auto bg-white p-8 rounded-2xl shadow-xl">
+            <h2 class="text-3xl font-bold mb-8 text-gray-800 text-center font-vazir">پنل مدیریت</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-blue-50 p-6 rounded-xl border border-blue-100 text-center transform hover:scale-105 transition-transform">
+                    <div class="text-4xl font-bold text-blue-600 mb-2">${stats.total_sessions}</div>
+                    <div class="text-gray-600 font-medium">جلسات ایجاد شده</div>
+                </div>
+                
+                <div class="bg-purple-50 p-6 rounded-xl border border-purple-100 text-center transform hover:scale-105 transition-transform">
+                    <div class="text-4xl font-bold text-purple-600 mb-2">${stats.total_timeslots}</div>
+                    <div class="text-gray-600 font-medium">زمان‌های پیشنهادی</div>
+                </div>
+                
+                <div class="bg-green-50 p-6 rounded-xl border border-green-100 text-center transform hover:scale-105 transition-transform">
+                    <div class="text-4xl font-bold text-green-600 mb-2">${stats.total_votes}</div>
+                    <div class="text-gray-600 font-medium">آرای ثبت شده</div>
+                </div>
+            </div>
+
+            <div class="mt-12 text-center">
+                <a href="/" class="inline-block bg-gray-800 text-white px-6 py-3 rounded-lg hover:bg-gray-900 transition-colors font-bold shadow-lg">
+                    بازگشت به صفحه اصلی
+                </a>
+            </div>
+        </div>
+    `;
+}
+
+async function fetchAdminStats() {
+    try {
+        const res = await fetch(`${API_BASE}/admin/stats`);
+        if (!res.ok) throw new Error('خطا در دریافت آمار');
+        const stats = await res.json();
+        renderAdminDashboard(stats);
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
 // Init
-const id = getSessionIDFromURL();
-if (id) {
-    fetchSession(id);
+const path = window.location.pathname;
+if (path === '/admin') {
+    fetchAdminStats();
 } else {
-    renderCreateSessionForm();
+    const id = getSessionIDFromURL();
+    if (id) {
+        fetchSession(id);
+    } else {
+        renderCreateSessionForm();
+    }
 }
