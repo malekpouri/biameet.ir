@@ -159,11 +159,116 @@ const id = getSessionIDFromURL();
 if (id) {
     fetchSession(id);
 } else {
-    // Show Create Session Form (Simplified)
+    // Show Create Session Form
+    renderCreateSessionForm();
+}
+
+function renderCreateSessionForm() {
     app.innerHTML = `
-        <div class="text-center py-10">
-            <h2 class="text-xl font-bold text-gray-700">خوش آمدید به بیا میت</h2>
-            <p class="text-gray-500 mt-2">برای ایجاد جلسه جدید از API استفاده کنید (رابط کاربری ایجاد جلسه هنوز پیاده‌سازی نشده است)</p>
+        <div class="max-w-2xl mx-auto bg-white p-6 rounded-lg shadow">
+            <h2 class="text-2xl font-bold mb-6 text-gray-800 text-center">ایجاد جلسه جدید</h2>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">عنوان جلسه</label>
+                    <input type="text" id="sessionTitle" class="w-full p-2 border rounded" placeholder="مثلاً: جلسه هفتگی تیم">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">نام ایجاد کننده</label>
+                    <input type="text" id="creatorName" class="w-full p-2 border rounded" placeholder="نام شما">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">زمان‌های پیشنهادی</label>
+                    <div id="timeslotsContainer" class="space-y-3">
+                        <!-- Timeslot inputs will go here -->
+                    </div>
+                    <button onclick="addTimeslotInput()" class="mt-2 text-blue-600 text-sm hover:underline">+ افزودن زمان</button>
+                </div>
+
+                <button onclick="submitCreateSession()" class="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 font-bold shadow-lg mt-6">
+                    ایجاد جلسه
+                </button>
+            </div>
         </div>
     `;
+    
+    // Add initial timeslot input
+    addTimeslotInput();
 }
+
+window.addTimeslotInput = function() {
+    const container = document.getElementById('timeslotsContainer');
+    const id = Date.now();
+    const div = document.createElement('div');
+    div.className = 'flex gap-2 items-end bg-gray-50 p-3 rounded border';
+    div.innerHTML = `
+        <div class="flex-1">
+            <label class="text-xs text-gray-500 block mb-1">شروع</label>
+            <input type="datetime-local" class="ts-start w-full p-1 border rounded text-sm" required>
+        </div>
+        <div class="flex-1">
+            <label class="text-xs text-gray-500 block mb-1">پایان</label>
+            <input type="datetime-local" class="ts-end w-full p-1 border rounded text-sm" required>
+        </div>
+        <button onclick="this.parentElement.remove()" class="text-red-500 hover:text-red-700 p-1">
+            &times;
+        </button>
+    `;
+    container.appendChild(div);
+};
+
+window.submitCreateSession = async function() {
+    const title = document.getElementById('sessionTitle').value;
+    const creatorName = document.getElementById('creatorName').value;
+    
+    if (!title || !creatorName) {
+        alert('لطفاً عنوان و نام خود را وارد کنید');
+        return;
+    }
+
+    const timeslots = [];
+    const startInputs = document.querySelectorAll('.ts-start');
+    const endInputs = document.querySelectorAll('.ts-end');
+
+    for (let i = 0; i < startInputs.length; i++) {
+        const start = startInputs[i].value;
+        const end = endInputs[i].value;
+        
+        if (start && end) {
+            timeslots.push({
+                start_utc: new Date(start).toISOString(),
+                end_utc: new Date(end).toISOString()
+            });
+        }
+    }
+
+    if (timeslots.length === 0) {
+        alert('لطفاً حداقل یک زمان را مشخص کنید');
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/sessions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title,
+                creator_name: creatorName,
+                timeslots
+            })
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'خطا در ایجاد جلسه');
+        }
+
+        const data = await res.json();
+        // Redirect to session page
+        window.location.search = `?id=${data.id}`;
+    } catch (err) {
+        alert(err.message);
+    }
+};
