@@ -327,11 +327,11 @@ function renderCreateSessionForm() {
                 <div class="flex gap-4 mb-4 bg-gray-50 p-2 rounded">
                     <label class="flex items-center gap-2 cursor-pointer flex-1 justify-center">
                         <input type="radio" name="sessionType" value="fixed" checked onchange="toggleSessionType('fixed')">
-                        <span class="text-sm font-medium">چند زمانه (Fixed)</span>
+                        <span class="text-sm font-medium">چند زمانه</span>
                     </label>
                     <label class="flex items-center gap-2 cursor-pointer flex-1 justify-center">
                         <input type="radio" name="sessionType" value="dynamic" onchange="toggleSessionType('dynamic')">
-                        <span class="text-sm font-medium">تک روز (Dynamic)</span>
+                        <span class="text-sm font-medium">تک روز </span>
                     </label>
                 </div>
 
