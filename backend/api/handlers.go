@@ -20,7 +20,7 @@ func CreateSessionHandler(c *fiber.Ctx) error {
 			"error": "Title and Creator Name are required",
 		})
 	}
-	
+
 	// Validation for fixed type
 	if req.Type != "dynamic" && len(req.Timeslots) == 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -150,4 +150,14 @@ func VoteHandler(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(models.VoteResponse{Status: "ok"})
+}
+
+func GetAdminStatsHandler(c *fiber.Ctx) error {
+	stats, err := services.GetAdminStats()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+	return c.JSON(stats)
 }

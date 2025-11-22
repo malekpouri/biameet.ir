@@ -8,7 +8,7 @@ type Session struct {
 	ExpiresAtUTC  string         `json:"expires_at_utc,omitempty"`
 	ArchivedAtUTC string         `json:"archived_at_utc,omitempty"`
 	Timeslots     []Timeslot     `json:"timeslots,omitempty"`
-	Type          string         `json:"type"`                      // "fixed" or "dynamic"
+	Type          string         `json:"type"` // "fixed" or "dynamic"
 	DynamicConfig *DynamicConfig `json:"dynamic_config,omitempty"`
 }
 
@@ -50,4 +50,10 @@ type TimeslotRequest struct {
 type CreateSessionResponse struct {
 	ID   string `json:"id"`
 	Link string `json:"link"`
+}
+
+type AdminStats struct {
+	TotalSessions  int `json:"total_sessions"`
+	TotalTimeslots int `json:"total_timeslots"`
+	TotalVotes     int `json:"total_votes"`
 }
