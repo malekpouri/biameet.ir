@@ -15,6 +15,19 @@ BiaMeet allows users to create sessions with multiple time slots and invite othe
 - Real-time-ish updates (on refresh).
 - Jalali date support for UI.
 
+## API Endpoints
+
+### Sessions
+
+- `POST /api/v1/sessions`: Create a new session.
+  - Body: `{ "title": "...", "creator_name": "...", "timeslots": [{ "start_utc": "...", "end_utc": "..." }] }`
+- `GET /api/v1/sessions/:id`: Get session details, timeslots, and votes.
+
+### Votes
+
+- `POST /api/v1/sessions/:id/vote`: Submit a vote.
+  - Body: `{ "voter_name": "...", "votes": [{ "timeslot_id": "...", "note": "..." }] }`
+
 ## Architecture
 
 - **Backend**: Go + Fiber
