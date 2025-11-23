@@ -8,31 +8,39 @@ BiaMeet allows users to create sessions with multiple time slots and invite othe
 
 ## Features
 
-- Create meeting sessions with title and creator name.
-- Define multiple time slots (UTC).
-- Share links for voting.
-- Users vote for time slots (Yes/No/Maybe notes).
-- Real-time-ish updates (on refresh).
-- Jalali date support for UI.
+- **Flexible Session Types**:
+  - **Specific Times**: Propose exact time slots for voting.
+  - **Weekly Pattern**: Define allowed days and time ranges for recurring meetings.
+  - **Time Range**: Set a date and time window for users to propose their own times.
+- **Smart Sharing**: Native Web Share API support with fallback to clipboard copy.
+- **Admin Dashboard**: View system statistics (Sessions, Timeslots, Votes) at `/admin`.
+- **User Experience**:
+  - Beautiful Toast Notifications.
+  - Mobile-optimized responsive design.
+  - Jalali (Persian) Calendar support.
+  - Voter transparency (names displayed under votes).
 
 ## API Endpoints
 
 ### Sessions
 
 - `POST /api/v1/sessions`: Create a new session.
-  - Body: `{ "title": "...", "creator_name": "...", "timeslots": [{ "start_utc": "...", "end_utc": "..." }] }`
-- `GET /api/v1/sessions/:id`: Get session details, timeslots, and votes.
+- `GET /api/v1/sessions/:id`: Get session details.
+- `POST /api/v1/sessions/:id/timeslots`: Add a dynamic timeslot.
 
 ### Votes
 
 - `POST /api/v1/sessions/:id/vote`: Submit a vote.
-  - Body: `{ "voter_name": "...", "votes": [{ "timeslot_id": "...", "note": "..." }] }`
+
+### Admin
+
+- `GET /api/v1/admin/stats`: Get system statistics.
 
 ## Architecture
 
 - **Backend**: Go + Fiber
 - **Database**: SQLite (Docker volume)
-- **Frontend**: Static HTML/JS + Tailwind CSS
+- **Frontend**: Vanilla JS + Tailwind CSS
 - **Deployment**: Docker Compose (Nginx + App)
 
 ## Local Development
@@ -41,7 +49,6 @@ BiaMeet allows users to create sessions with multiple time slots and invite othe
 
 - Go 1.21+
 - Docker & Docker Compose
-- Node.js (optional, for frontend tooling if needed later)
 
 ### Running Locally
 
@@ -58,7 +65,7 @@ BiaMeet allows users to create sessions with multiple time slots and invite othe
    docker-compose up --build
    ```
 
-   Access the app at `http://localhost:80`.
+   Access the app at `http://localhost:8085`.
 
 3. **Manual Backend Run**:
 

@@ -5,8 +5,8 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
-    ports:
-      - "8080:8080"
+    # ports:
+    #   - "8080:8080"
     volumes:
       - sqlite_data:/root/data
     environment:
@@ -18,7 +18,7 @@ services:
       context: .
       dockerfile: docker/frontend.Dockerfile
     ports:
-      - "80:80"
+      - "8085:80"
     depends_on:
       - backend
 

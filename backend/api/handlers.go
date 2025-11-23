@@ -22,21 +22,31 @@ func CreateSessionHandler(c *fiber.Ctx) error {
 	}
 
 	// Validation for fixed type
-	if req.Type != "dynamic" && len(req.Timeslots) == 0 {
+	if req.Type == "fixed" && len(req.Timeslots) == 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "At least one timeslot is required for fixed sessions",
 		})
 	}
-	// Validation for dynamic type
-	if req.Type == "dynamic" {
+	// Validation for dynamic and weekly type
+	if req.Type == "dynamic" || req.Type == "weekly" {
 		if req.DynamicConfig == nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": "Dynamic config is required for dynamic sessions",
+				"error": "Dynamic config is required for dynamic/weekly sessions",
 			})
 		}
-		if req.DynamicConfig.DateUTC == "" || req.DynamicConfig.MinTime == "" || req.DynamicConfig.MaxTime == "" {
+		if req.DynamicConfig.MinTime == "" || req.DynamicConfig.MaxTime == "" {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": "Date, MinTime, and MaxTime are required for dynamic sessions",
+				"error": "MinTime and MaxTime are required",
+			})
+		}
+		if req.Type == "dynamic" && req.DynamicConfig.DateUTC == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "DateUTC is required for dynamic sessions",
+			})
+		}
+		if req.Type == "weekly" && len(req.DynamicConfig.AllowedDays) == 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "AllowedDays is required for weekly sessions",
 			})
 		}
 	}

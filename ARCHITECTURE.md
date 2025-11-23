@@ -5,8 +5,11 @@
 - **Language**: Go (Golang)
 - **Framework**: Fiber (v2/v3)
 - **Database**: SQLite3
-- **Frontend**: Vanilla JS + Tailwind CSS (via CDN or local build)
-- **Containerization**: Docker (Multi-stage build for Go, Nginx for Frontend)
+- **Frontend**: Vanilla JS + Tailwind CSS (No build step required for JS, Tailwind via CDN or CLI)
+- **Containerization**:
+  - Backend: Multi-stage Docker build (Go -> Alpine)
+  - Frontend: Nginx serving static files
+  - Network: Internal Docker network for API communication (Frontend proxies /api to Backend:8080)
 
 ## Data Flow
 

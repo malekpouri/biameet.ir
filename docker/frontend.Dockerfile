@@ -13,7 +13,7 @@ COPY frontend .
 RUN npm run build
 
 # Copy static assets to dist (simple build step)
-RUN cp src/index.html dist/ && cp src/app.js dist/
+RUN cp src/index.html dist/ && cp src/app.js dist/ && cp src/favicon.svg dist/
 
 # Final stage
 FROM nginx:alpine

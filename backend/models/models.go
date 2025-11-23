@@ -13,9 +13,12 @@ type Session struct {
 }
 
 type DynamicConfig struct {
-	DateUTC string `json:"date_utc"`
-	MinTime string `json:"min_time"` // "HH:MM"
-	MaxTime string `json:"max_time"` // "HH:MM"
+	DateUTC     string `json:"date_utc,omitempty"`     // Optional for weekly
+	MinTime     string `json:"min_time"`               // "HH:MM"
+	MaxTime     string `json:"max_time"`               // "HH:MM"
+	AllowedDays []int  `json:"allowed_days,omitempty"` // 0-6 (Sat-Fri or Sun-Sat? Let's assume 0=Saturday as per frontend or just standard 0=Sunday)
+	// Frontend used (idx + 6) % 7 for Jalali.
+	// Let's store standard JS Day (0=Sunday, 6=Saturday) to be safe, or just what frontend sends.
 }
 
 type Timeslot struct {

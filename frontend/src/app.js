@@ -10,8 +10,11 @@ const app = document.getElementById('app');
 
 // Toast Container
 const toastContainer = document.createElement('div');
-toastContainer.className = 'fixed bottom-4 left-4 z-50 flex flex-col gap-2';
+toastContainer.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 flex flex-col gap-2 w-full max-w-sm px-4';
 document.body.appendChild(toastContainer);
+
+// Theme Management
+
 
 function showToast(message, type = 'info') {
     const toast = document.createElement('div');
@@ -68,6 +71,41 @@ function getJalaliMonths() {
     return ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
 }
 
+function getDayName(date) {
+    const days = ['یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه', 'شنبه'];
+    return days[date.getDay()];
+}
+
+function formatJalaliDate(utcDateString) {
+    if (!utcDateString) return '';
+    const date = new Date(utcDateString);
+    const j = jalaali.toJalaali(date);
+    const dayName = getDayName(date);
+    return `${dayName} ${j.jy}/${j.jm}/${j.jd}`;
+}
+
+function renderTimePicker(prefix, defaultHour = 9, defaultMinute = 0, minHour = 0, maxHour = 23) {
+    let hourOpts = '';
+    for (let i = minHour; i <= maxHour; i++) {
+        const val = String(i).padStart(2, '0');
+        hourOpts += `<option value="${val}" ${i === defaultHour ? 'selected' : ''}>${val}</option>`;
+    }
+
+    let minOpts = '';
+    for (let i = 0; i < 60; i += 15) {
+        const val = String(i).padStart(2, '0');
+        minOpts += `<option value="${val}" ${i === defaultMinute ? 'selected' : ''}>${val}</option>`;
+    }
+
+    return `
+        <div class="flex gap-1 items-center justify-center bg-white dark:bg-gray-700 border dark:border-gray-600 rounded p-1" dir="ltr">
+            <select id="${prefix}_hour" class="p-1 bg-transparent text-center font-mono w-12 outline-none dark:text-white">${hourOpts}</select>
+            <span class="text-gray-500 dark:text-gray-400">:</span>
+            <select id="${prefix}_minute" class="p-1 bg-transparent text-center font-mono w-12 outline-none dark:text-white">${minOpts}</select>
+        </div>
+    `;
+}
+
 function renderJalaliDatePicker(prefix, defaultDate = new Date()) {
     const j = jalaali.toJalaali(defaultDate);
     const months = getJalaliMonths();
@@ -86,31 +124,9 @@ function renderJalaliDatePicker(prefix, defaultDate = new Date()) {
 
     return `
         <div class="flex gap-1 items-center" dir="rtl">
-            <select id="${prefix}_day" class="p-2 border rounded bg-white text-center text-sm flex-1">${daysOpts}</select>
-            <select id="${prefix}_month" class="p-2 border rounded bg-white text-center text-sm flex-1">${monthsOpts}</select>
-            <select id="${prefix}_year" class="p-2 border rounded bg-white text-center text-sm flex-1">${yearsOpts}</select>
-        </div>
-    `;
-}
-
-function renderTimePicker(prefix, defaultHour = 9, defaultMinute = 0) {
-    let hourOpts = '';
-    for (let i = 0; i < 24; i++) {
-        const val = String(i).padStart(2, '0');
-        hourOpts += `<option value="${val}" ${i === defaultHour ? 'selected' : ''}>${val}</option>`;
-    }
-
-    let minOpts = '';
-    for (let i = 0; i < 60; i += 15) {
-        const val = String(i).padStart(2, '0');
-        minOpts += `<option value="${val}" ${i === defaultMinute ? 'selected' : ''}>${val}</option>`;
-    }
-
-    return `
-        <div class="flex gap-1 items-center justify-center bg-white border rounded p-1" dir="ltr">
-            <select id="${prefix}_hour" class="p-1 bg-transparent text-center font-mono w-12 outline-none">${hourOpts}</select>
-            <span class="text-gray-500">:</span>
-            <select id="${prefix}_minute" class="p-1 bg-transparent text-center font-mono w-12 outline-none">${minOpts}</select>
+            <select id="${prefix}_day" class="p-2 border rounded bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white text-center text-sm flex-1">${daysOpts}</select>
+            <select id="${prefix}_month" class="p-2 border rounded bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white text-center text-sm flex-1">${monthsOpts}</select>
+            <select id="${prefix}_year" class="p-2 border rounded bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white text-center text-sm flex-1">${yearsOpts}</select>
         </div>
     `;
 }
@@ -217,12 +233,12 @@ function renderSession() {
         const date = new Date(dynamic_config.date_utc);
         const j = jalaali.toJalaali(date);
         dynamicHeader = `
-            <div class="bg-blue-50 p-4 rounded-lg mb-6 border border-blue-100">
+            <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg mb-6 border border-blue-100 dark:border-blue-800">
                 <div class="text-center">
-                    <span class="block text-gray-500 text-sm mb-1">تاریخ انتخابی</span>
-                    <span class="text-xl font-bold text-blue-800">${j.jy}/${j.jm}/${j.jd}</span>
+                    <span class="block text-gray-500 dark:text-gray-400 text-sm mb-1">تاریخ انتخابی</span>
+                    <span class="text-xl font-bold text-blue-800 dark:text-blue-300">${j.jy}/${j.jm}/${j.jd}</span>
                 </div>
-                <div class="mt-2 text-center text-sm text-gray-600">
+                <div class="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
                     بازه مجاز: ${dynamic_config.min_time} تا ${dynamic_config.max_time}
                 </div>
             </div>
@@ -230,17 +246,17 @@ function renderSession() {
 
         dynamicInput = `
             <div class="mt-8 border-t pt-6">
-                <h3 class="font-semibold text-gray-700 mb-4">پیشنهاد زمان جدید</h3>
-                <div class="bg-gray-50 p-4 rounded border">
+                <h3 class="font-semibold text-gray-700 dark:text-gray-300 mb-4">پیشنهاد زمان جدید</h3>
+                <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded border dark:border-gray-600">
                     <div class="flex gap-4 items-center justify-center mb-4">
                         <div class="flex flex-col items-center">
-                            <span class="text-xs text-gray-500 mb-1">از ساعت</span>
-                            ${renderTimePicker('dynamic_start', 10, 0)}
+                            <span class="text-xs text-gray-500 dark:text-gray-400 mb-1">از ساعت</span>
+                            ${renderTimePicker('dynamic_start', 10, 0, parseInt(dynamic_config.min_time.split(':')[0]), parseInt(dynamic_config.max_time.split(':')[0]))}
                         </div>
                         <div class="text-gray-400 mt-4">←</div>
                         <div class="flex flex-col items-center">
-                            <span class="text-xs text-gray-500 mb-1">تا ساعت</span>
-                            ${renderTimePicker('dynamic_end', 11, 0)}
+                            <span class="text-xs text-gray-500 dark:text-gray-400 mb-1">تا ساعت</span>
+                            ${renderTimePicker('dynamic_end', 11, 0, parseInt(dynamic_config.min_time.split(':')[0]), parseInt(dynamic_config.max_time.split(':')[0]))}
                         </div>
                     </div>
                     <button onclick="submitDynamicTimeslot()" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 text-sm font-bold">
@@ -249,18 +265,91 @@ function renderSession() {
                 </div>
             </div>
         `;
+    } else if (type === 'weekly' && dynamic_config) {
+        const daysMap = ['یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه', 'شنبه'];
+        const allowedDays = (dynamic_config.allowed_days || []).map(d => daysMap[d]).join('، ');
+
+        const dateOptions = (dynamic_config.allowed_days || []).map(dayIdx => {
+             return `<option value="${dayIdx}">${daysMap[dayIdx]}</option>`;
+        }).join('');
+
+        dynamicHeader = `
+            <div class="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg mb-6 border border-purple-100 dark:border-purple-800">
+                <div class="text-center">
+                    <span class="block text-gray-500 dark:text-gray-400 text-sm mb-1">الگوی هفتگی</span>
+                    <span class="text-lg font-bold text-purple-800 dark:text-purple-300">${allowedDays}</span>
+                </div>
+                <div class="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+                    بازه مجاز: ${dynamic_config.min_time} تا ${dynamic_config.max_time}
+                </div>
+                <div class="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center">
+                    لطفاً یکی از روزهای مجاز را انتخاب کنید و ساعت پیشنهادی خود را وارد نمایید.
+                </div>
+            </div>
+        `;
+
+        dynamicInput = `
+            <div class="mt-8 border-t pt-6">
+                <h3 class="font-semibold text-gray-700 dark:text-gray-300 mb-4">پیشنهاد زمان جدید</h3>
+                <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded border dark:border-gray-600">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">انتخاب روز</label>
+                        <select id="weekly_date_select" class="w-full p-2 border rounded dark:bg-gray-600 dark:border-gray-500 dark:text-white">
+                            ${dateOptions}
+                        </select>
+                    </div>
+                    <div class="flex gap-4 items-center justify-center mb-4">
+                        <div class="flex flex-col items-center">
+                            <span class="text-xs text-gray-500 dark:text-gray-400 mb-1">از ساعت</span>
+                            ${renderTimePicker('dynamic_start', 10, 0, parseInt(dynamic_config.min_time.split(':')[0]), parseInt(dynamic_config.max_time.split(':')[0]))}
+                        </div>
+                        <div class="text-gray-400 mt-4">←</div>
+                        <div class="flex flex-col items-center">
+                            <span class="text-xs text-gray-500 dark:text-gray-400 mb-1">تا ساعت</span>
+                            ${renderTimePicker('dynamic_end', 11, 0, parseInt(dynamic_config.min_time.split(':')[0]), parseInt(dynamic_config.max_time.split(':')[0]))}
+                        </div>
+                    </div>
+                    <button onclick="submitDynamicTimeslot()" class="w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700 text-sm font-bold">
+                        افزودن زمان
+                    </button>
+                </div>
+            </div>
+        `;
     }
 
     app.innerHTML = `
-        <div class="max-w-2xl mx-auto bg-white p-6 rounded-lg shadow">
-            <h2 class="text-2xl font-bold mb-2 text-gray-800 text-center">${title}</h2>
-            <p class="text-gray-600 mb-6 text-center">ایجاد شده توسط: ${creator_name}</p>
+        <div class="max-w-2xl mx-auto bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+            <div class="flex justify-between items-start mb-4">
+                <h2 class="text-2xl font-bold text-gray-800 dark:text-white flex-1 text-center">${title}</h2>
+                <div class="flex gap-2">
+                    <button onclick="copyLink()" class="text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-full transition-colors" title="کپی لینک">
+                        📋
+                    </button>                    
+                </div>
+            </div>
+            <p class="text-gray-600 dark:text-gray-400 mb-6 text-center">ایجاد شده توسط: ${creator_name}</p>
+
+            ${type === 'fixed' ? `
+                <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded mb-6 text-sm text-gray-600 dark:text-gray-300 border dark:border-gray-600">
+                    <span class="font-bold">راهنما:</span> لطفاً زمان‌های مناسب خود را از لیست زیر انتخاب کنید و دکمه ثبت رای را بزنید.
+                </div>
+            ` : ''}
+            ${type === 'dynamic' ? `
+                <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded mb-6 text-sm text-blue-800 dark:text-blue-300 border border-blue-100 dark:border-blue-800">
+                    <span class="font-bold">راهنما:</span> شما می‌توانید علاوه بر انتخاب زمان‌های موجود، زمان پیشنهادی خود را در بازه مجاز اضافه کنید.
+                </div>
+            ` : ''}
+            ${type === 'weekly' ? `
+                <div class="bg-purple-50 dark:bg-purple-900/20 p-3 rounded mb-6 text-sm text-purple-800 dark:text-purple-300 border border-purple-100 dark:border-purple-800">
+                    <span class="font-bold">راهنما:</span> روزهای مجاز در بالا نمایش داده شده‌اند. می‌توانید از لیست پایین، یک روز خاص را انتخاب کرده و ساعت پیشنهادی خود را اضافه کنید.
+                </div>
+            ` : ''}
 
             ${dynamicHeader}
 
             <div class="mb-6">
-                <label class="block text-sm font-medium text-gray-700 mb-2">نام شما:</label>
-                <input type="text" id="voterNameInput" class="w-full p-2 border rounded text-right" placeholder="نام خود را وارد کنید...">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">نام شما:</label>
+                <input type="text" id="voterNameInput" class="w-full p-2 border rounded text-right dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="نام خود را وارد کنید...">
             </div>
 
             <div class="space-y-3">
@@ -276,7 +365,10 @@ function renderSession() {
                          onclick="toggleTimeslot('${ts.id}')">
                         <div class="flex flex-col sm:flex-row justify-between items-center gap-2">
                             <div>
-                                <div class="font-bold text-gray-800">${formatTime(ts.start_utc)} - ${formatTime(ts.end_utc)}</div>
+                                <div class="text-sm text-gray-500 dark:text-gray-400 mb-1 text-right">
+                                    ${type === 'weekly' ? getDayName(new Date(ts.start_utc)) : formatJalaliDate(ts.start_utc)}
+                                </div>
+                                <div class="font-bold text-gray-800 dark:text-white">${formatTime(ts.start_utc)} - ${formatTime(ts.end_utc)}</div>
                             </div>
                             <div class="flex items-center space-x-2 space-x-reverse">
                                 <span class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs">
@@ -319,16 +411,65 @@ window.toggleTimeslot = function (id) {
     renderSession();
 };
 
+window.copyLink = function() {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url).then(() => {
+        showToast('لینک کپی شد', 'success');
+    }).catch(() => {
+        showToast('خطا در کپی لینک', 'error');
+    });
+};
+
+window.shareSession = function() {
+    const url = window.location.href;
+    if (navigator.share) {
+        navigator.share({
+            title: sessionData.title,
+            text: `دعوت به جلسه: ${sessionData.title}`,
+            url: url
+        }).catch(console.error);
+    } else {
+        copyLink();
+    }
+};
+
 window.submitDynamicTimeslot = async function () {
     const start = getTimeFromPicker('dynamic_start');
     const end = getTimeFromPicker('dynamic_end');
 
     // Construct dates
-    const sessionDate = new Date(sessionData.dynamic_config.date_utc);
-    const yyyy = sessionDate.getFullYear();
-    const mm = String(sessionDate.getMonth() + 1).padStart(2, '0');
-    const dd = String(sessionDate.getDate()).padStart(2, '0');
-    const dateStr = `${yyyy}-${mm}-${dd}`;
+    let dateStr;
+    if (sessionData.type === 'dynamic') {
+        const sessionDate = new Date(sessionData.dynamic_config.date_utc);
+        const yyyy = sessionDate.getFullYear();
+        const mm = String(sessionDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(sessionDate.getDate()).padStart(2, '0');
+        dateStr = `${yyyy}-${mm}-${dd}`;
+    } else if (sessionData.type === 'weekly') {
+        const dayIdx = parseInt(document.getElementById('weekly_date_select').value);
+        if (isNaN(dayIdx)) {
+            showToast('لطفاً یک روز را انتخاب کنید', 'warning');
+            return;
+        }
+        
+        // Find the first occurrence of this day on or after creation date to normalize
+        const baseDate = new Date(sessionData.created_at_utc);
+        baseDate.setHours(0,0,0,0);
+        
+        // Calculate days to add
+        // current day: baseDate.getDay()
+        // target day: dayIdx
+        let diff = dayIdx - baseDate.getDay();
+        if (diff < 0) diff += 7;
+        
+        const targetDate = new Date(baseDate);
+        targetDate.setDate(baseDate.getDate() + diff);
+        
+        const yyyy = targetDate.getFullYear();
+        const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(targetDate.getDate()).padStart(2, '0');
+        dateStr = `${yyyy}-${mm}-${dd}`;
+    }
 
     const startDateTimeStr = `${dateStr}T${start}:00`;
     const endDateTimeStr = `${dateStr}T${end}:00`;
@@ -383,51 +524,92 @@ function renderCreateSessionForm() {
             
             <div class="space-y-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">عنوان جلسه</label>
-                    <input type="text" id="sessionTitle" class="w-full p-2 border rounded" placeholder="مثلاً: جلسه هفتگی تیم">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">عنوان جلسه</label>
+                    <input type="text" id="sessionTitle" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="مثلاً: جلسه هفتگی تیم">
                 </div>
                 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">نام ایجاد کننده</label>
-                    <input type="text" id="creatorName" class="w-full p-2 border rounded" placeholder="نام شما">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">نام ایجاد کننده</label>
+                    <input type="text" id="creatorName" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="نام شما">
                 </div>
 
-                <div class="flex gap-4 mb-4 bg-gray-50 p-2 rounded">
-                    <label class="flex items-center gap-2 cursor-pointer flex-1 justify-center bg-white p-2 rounded border hover:bg-gray-50 transition-colors">
+                    <label class="flex items-center gap-2 cursor-pointer flex-1 justify-center bg-white dark:bg-gray-700 p-2 rounded border dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
                         <input type="radio" name="sessionType" value="fixed" checked onchange="toggleSessionType('fixed')">
-                        <span class="text-sm font-medium">زمان‌های مشخص</span>
+                        <span class="text-sm font-medium dark:text-white">زمان‌های مشخص</span>
                     </label>
-                    <label class="flex items-center gap-2 cursor-pointer flex-1 justify-center bg-white p-2 rounded border hover:bg-gray-50 transition-colors">
+                    <label class="flex items-center gap-2 cursor-pointer flex-1 justify-center bg-white dark:bg-gray-700 p-2 rounded border dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                        <input type="radio" name="sessionType" value="weekly" onchange="toggleSessionType('weekly')">
+                        <span class="text-sm font-medium dark:text-white">الگوی هفتگی</span>
+                    </label>                   
+                    <label class="flex items-center gap-2 cursor-pointer flex-1 justify-center bg-white dark:bg-gray-700 p-2 rounded border dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
                         <input type="radio" name="sessionType" value="dynamic" onchange="toggleSessionType('dynamic')">
-                        <span class="text-sm font-medium">بازه زمانی</span>
+                        <span class="text-sm font-medium dark:text-white">بازه زمانی</span>
                     </label>
+                </div>
+
+                <!-- Type Descriptions -->
+                <div id="typeDescription" class="mb-4 text-sm text-gray-600 bg-blue-50 p-3 rounded border border-blue-100">
+                    در این حالت شما چند زمان مشخص را پیشنهاد می‌دهید و شرکت‌کنندگان می‌توانند به آن‌ها رای دهند.
                 </div>
 
                 <!-- Fixed Times Section -->
                 <div id="fixedTimeSection">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">زمان‌های پیشنهادی</label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">زمان‌های پیشنهادی</label>
                     <div id="timeslotsContainer" class="space-y-4">
                         <!-- Timeslot inputs will go here -->
                     </div>
-                    <button onclick="addTimeslotInput()" class="mt-4 w-full border-2 border-dashed border-blue-300 text-blue-600 py-2 rounded hover:bg-blue-50 transition-colors">
+                    <button onclick="addTimeslotInput()" class="mt-4 w-full border-2 border-dashed border-blue-300 text-blue-600 dark:border-blue-500 dark:text-blue-400 py-2 rounded hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors">
                         + افزودن زمان جدید
                     </button>
                 </div>
 
-                <!-- Dynamic Time Section -->
-                <div id="dynamicTimeSection" class="hidden space-y-4 border p-4 rounded bg-blue-50">
+                <!-- Weekly Section -->
+                <div id="weeklyTimeSection" class="hidden space-y-4 border p-4 rounded bg-purple-50 dark:bg-purple-900/20 dark:border-purple-800">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">تاریخ جلسه</label>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">روزهای هفته</label>
+                        <div class="grid grid-cols-2 gap-2" id="weekDaysContainer">
+                            ${['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه'].map((day, idx) => `
+                                <label class="flex items-center gap-2 bg-white dark:bg-gray-700 p-2 rounded border dark:border-gray-600 cursor-pointer">
+                                    <input type="checkbox" name="weekDay" value="${(idx + 6) % 7}">
+                                    <span class="text-sm dark:text-white">${day}</span>
+                                </label>
+                            `).join('')}
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-4 items-center justify-center">
+                        <div class="flex flex-col items-center">
+                            <span class="text-xs text-gray-500 dark:text-gray-400 mb-1">شروع</span>
+                            ${renderTimePicker('weekly_start', 9, 0)}
+                        </div>
+                        <div class="text-gray-400 mt-4">←</div>
+                        <div class="flex flex-col items-center">
+                            <span class="text-xs text-gray-500 dark:text-gray-400 mb-1">پایان</span>
+                            ${renderTimePicker('weekly_end', 17, 0)}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">مدت اعتبار لینک (هفته)</label>
+                        <input type="number" id="linkDurationWeeks" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" value="4" min="1" max="52">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">پس از این مدت، لینک غیرفعال خواهد شد.</p>
+                    </div>
+                </div>
+
+                <!-- Dynamic Time Section -->
+                <div id="dynamicTimeSection" class="hidden space-y-4 border p-4 rounded bg-blue-50 dark:bg-blue-900/20 dark:border-blue-800">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">تاریخ جلسه</label>
                         ${renderJalaliDatePicker('dyn_date')}
                     </div>
                     <div class="flex gap-4 items-center justify-center">
                         <div class="flex flex-col items-center">
-                            <span class="text-xs text-gray-500 mb-1">از ساعت</span>
+                            <span class="text-xs text-gray-500 dark:text-gray-400 mb-1">از ساعت</span>
                             ${renderTimePicker('dyn_min', 9, 0)}
                         </div>
                         <div class="text-gray-400 mt-4">←</div>
                         <div class="flex flex-col items-center">
-                            <span class="text-xs text-gray-500 mb-1">تا ساعت</span>
+                            <span class="text-xs text-gray-500 dark:text-gray-400 mb-1">تا ساعت</span>
                             ${renderTimePicker('dyn_max', 17, 0)}
                         </div>
                     </div>
@@ -506,14 +688,23 @@ window.addTimeslotInput = function () {
 
 window.toggleSessionType = function (type) {
     const fixedSection = document.getElementById('fixedTimeSection');
+    const weeklySection = document.getElementById('weeklyTimeSection');
     const dynamicSection = document.getElementById('dynamicTimeSection');
+    const typeDesc = document.getElementById('typeDescription');
+
+    fixedSection.classList.add('hidden');
+    weeklySection.classList.add('hidden');
+    dynamicSection.classList.add('hidden');
 
     if (type === 'fixed') {
         fixedSection.classList.remove('hidden');
-        dynamicSection.classList.add('hidden');
+        typeDesc.innerText = 'در این حالت شما چند زمان مشخص را پیشنهاد می‌دهید و شرکت‌کنندگان می‌توانند به آن‌ها رای دهند.';
+    } else if (type === 'weekly') {
+        weeklySection.classList.remove('hidden');
+        typeDesc.innerText = 'در این حالت شما روزهای مجاز هفته و بازه زمانی را مشخص می‌کنید. شرکت‌کنندگان می‌توانند در این روزها زمان پیشنهاد دهند.';
     } else {
-        fixedSection.classList.add('hidden');
         dynamicSection.classList.remove('hidden');
+        typeDesc.innerText = 'در این حالت شما یک تاریخ و بازه زمانی کلی مشخص می‌کنید و شرکت‌کنندگان می‌توانند هر زمانی در این بازه را پیشنهاد دهند.';
     }
 };
 
@@ -555,6 +746,31 @@ window.submitCreateSession = async function () {
             showToast('لطفاً حداقل دو زمان را مشخص کنید تا کاربران حق انتخاب داشته باشند', 'warning');
             return;
         }
+    } else if (type === 'weekly') {
+        // Weekly Pattern
+        const checkboxes = document.querySelectorAll('input[name="weekDay"]:checked');
+        if (checkboxes.length === 0) {
+            showToast('لطفاً حداقل یک روز هفته را انتخاب کنید', 'warning');
+            return;
+        }
+
+        const startTime = getTimeFromPicker('weekly_start');
+        const endTime = getTimeFromPicker('weekly_end');
+        const durationWeeks = parseInt(document.getElementById('linkDurationWeeks').value) || 4;
+        
+        // Calculate expiration
+        const expirationDate = new Date();
+        expirationDate.setDate(expirationDate.getDate() + (durationWeeks * 7));
+        payload.expires_at_utc = expirationDate.toISOString();
+
+        const selectedDays = Array.from(checkboxes).map(cb => parseInt(cb.value));
+        
+        payload.type = 'weekly';
+        payload.dynamic_config = {
+            min_time: startTime,
+            max_time: endTime,
+            allowed_days: selectedDays
+        };
     } else {
         // Dynamic
         const jDate = getJalaliDateFromPicker('dyn_date');
