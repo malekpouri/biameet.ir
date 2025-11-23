@@ -1,38 +1,43 @@
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BiaMeet | بیا میت</title>
-    <link href="./output.css" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link href="./output.css" rel="stylesheet" />
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;700&display=swap');
+      @import url("https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;700&display=swap");
 
-        body {
-            font-family: 'Vazirmatn', sans-serif;
-        }
+      body {
+        font-family: "Vazirmatn", sans-serif;
+      }
     </style>
-</head>
+  </head>
 
-<body class="bg-gray-100 text-gray-900 min-h-screen flex flex-col">
+  <body class="bg-gray-100 text-gray-900 min-h-screen flex flex-col">
     <div class="container mx-auto p-4 flex-grow">
-        <header class="mb-8 text-center">
-            <h1 class="text-4xl font-bold text-blue-600 tracking-tight">بیا میت</h1>
-            <p class="text-gray-600 mt-2">زمان‌بندی ساده جلسات</p>
-        </header>
-        <main id="app">
-            <div class="bg-white p-6 rounded-lg shadow-md text-center">
-                <div class="animate-pulse flex flex-col items-center">
-                    <div class="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
-                    <div class="h-4 bg-gray-200 rounded w-3/4"></div>
-                </div>
-                <p class="mt-4 text-gray-500">در حال بارگذاری...</p>
-            </div>
-        </main>
+      <header class="mb-8 text-center">
+        <a href="/" class="inline-block hover:opacity-80 transition-opacity">
+          <h1 class="text-4xl font-bold text-blue-600 tracking-tight">
+            بیا میت
+          </h1>
+          <p class="text-gray-600 mt-2">زمان‌بندی ساده جلسات</p>
+        </a>
+      </header>
+      <main id="app">
+        <div class="bg-white p-6 rounded-lg shadow-md text-center">
+          <div class="animate-pulse flex flex-col items-center">
+            <div class="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+            <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+          </div>
+          <p class="mt-4 text-gray-500">در حال بارگذاری...</p>
+        </div>
+      </main>
     </div>
     <footer class="text-center py-4 text-gray-400 text-sm">
-        &copy; 2025 تولید شده توسط سایت <a href="https://utux.ir" class="hover:text-gray-600">utux.ir</a>
+      &copy; 2025 تولید شده توسط سایت
+      <a href="https://utux.ir" class="hover:text-gray-600">utux.ir</a>
     </footer>
 
     <!-- Scripts -->
@@ -42,12 +47,11 @@
     <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/timezone.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/jalali.js"></script>
     <script>
-        dayjs.extend(window.dayjs_plugin_utc);
-        dayjs.extend(window.dayjs_plugin_timezone);
-        // dayjs-jalali plugin might need different loading or just use jalaali-js directly for simplicity
-        // actually let's stick to jalaali-js for conversion and native Date/dayjs for time
+      dayjs.extend(window.dayjs_plugin_utc);
+      dayjs.extend(window.dayjs_plugin_timezone);
+      // dayjs-jalali plugin might need different loading or just use jalaali-js directly for simplicity
+      // actually let's stick to jalaali-js for conversion and native Date/dayjs for time
     </script>
     <script src="./app.js"></script>
-</body>
-
+  </body>
 </html>

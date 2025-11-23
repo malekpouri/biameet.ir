@@ -8,9 +8,40 @@ let voterName = '';
 // DOM Elements
 const app = document.getElementById('app');
 
+// Toast Container
+const toastContainer = document.createElement('div');
+toastContainer.className = 'fixed bottom-4 left-4 z-50 flex flex-col gap-2';
+document.body.appendChild(toastContainer);
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    const colors = {
+        info: 'bg-blue-600',
+        success: 'bg-green-600',
+        error: 'bg-red-600',
+        warning: 'bg-yellow-600'
+    };
+    toast.className = `${colors[type]} text-white px-6 py-3 rounded shadow-lg transform transition-all duration-300 translate-y-10 opacity-0`;
+    toast.innerText = message;
+    
+    toastContainer.appendChild(toast);
+    
+    // Animate in
+    requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-10', 'opacity-0');
+    });
+
+    // Remove after 3s
+    setTimeout(() => {
+        toast.classList.add('translate-y-10', 'opacity-0');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
 // Utils
 function getSessionIDFromURL() {
     const path = window.location.pathname;
+    if (path === '/admin') return 'admin';
     const id = path.substring(1);
     if (id && /^[a-zA-Z0-9]{5}$/.test(id)) {
         return id;
@@ -118,13 +149,24 @@ async function fetchSession(id) {
     }
 }
 
+async function fetchAdminStats() {
+    try {
+        const res = await fetch(`${API_BASE}/admin/stats`);
+        if (!res.ok) throw new Error('Failed to fetch stats');
+        const stats = await res.json();
+        renderAdminDashboard(stats);
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
 async function submitVote() {
     if (!voterName) {
-        alert('لطفاً نام خود را وارد کنید');
+        showToast('لطفاً نام خود را وارد کنید', 'warning');
         return;
     }
     if (selectedTimeslots.size === 0) {
-        alert('لطفاً حداقل یک زمان را انتخاب کنید');
+        showToast('لطفاً حداقل یک زمان را انتخاب کنید', 'warning');
         return;
     }
 
@@ -148,10 +190,12 @@ async function submitVote() {
             throw new Error(err.error || 'خطا در ثبت رای');
         }
 
-        alert('رای شما با موفقیت ثبت شد');
-        window.location.reload();
+        showToast('رای شما با موفقیت ثبت شد', 'success');
+        // Refresh data without reload
+        fetchSession(sessionData.id);
+        selectedTimeslots.clear();
     } catch (err) {
-        alert(err.message);
+        showToast(err.message, 'error');
     }
 }
 
@@ -225,22 +269,27 @@ function renderSession() {
                 ${timeslots.map(ts => {
         const isSelected = selectedTimeslots.has(ts.id);
         const count = voteCounts[ts.id] || 0;
-        const voters = (ts.votes || []).map(v => v.voter_name).join(', ');
+        const voters = (ts.votes || []).map(v => v.voter_name);
 
         return `
                     <div class="timeslot-card border rounded p-3 cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 border-blue-500' : 'hover:bg-gray-50'}"
                          onclick="toggleTimeslot('${ts.id}')">
-                        <div class="flex justify-between items-center">
+                        <div class="flex flex-col sm:flex-row justify-between items-center gap-2">
                             <div>
                                 <div class="font-bold text-gray-800">${formatTime(ts.start_utc)} - ${formatTime(ts.end_utc)}</div>
                             </div>
                             <div class="flex items-center space-x-2 space-x-reverse">
-                                <span class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs" title="${voters}">
+                                <span class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs">
                                     ${count} رای
                                 </span>
                                 ${isSelected ? '<span class="text-blue-600">✓</span>' : ''}
                             </div>
                         </div>
+                        ${voters.length > 0 ? `
+                        <div class="mt-2 text-xs text-gray-500 border-t pt-2">
+                            <span class="font-semibold">رای‌دهندگان:</span> ${voters.join('، ')}
+                        </div>
+                        ` : ''}
                     </div>
                     `;
     }).join('')}
@@ -288,6 +337,24 @@ window.submitDynamicTimeslot = async function () {
     const endUTC = new Date(endDateTimeStr).toISOString();
 
     try {
+        // Validate range
+        const minTimeParts = sessionData.dynamic_config.min_time.split(':').map(Number);
+        const maxTimeParts = sessionData.dynamic_config.max_time.split(':').map(Number);
+        const startParts = start.split(':').map(Number);
+        const endParts = end.split(':').map(Number);
+
+        const minMins = minTimeParts[0] * 60 + minTimeParts[1];
+        const maxMins = maxTimeParts[0] * 60 + maxTimeParts[1];
+        const startMins = startParts[0] * 60 + startParts[1];
+        const endMins = endParts[0] * 60 + endParts[1];
+
+        if (startMins < minMins || endMins > maxMins) {
+            throw new Error(`زمان انتخابی باید بین ${sessionData.dynamic_config.min_time} و ${sessionData.dynamic_config.max_time} باشد`);
+        }
+        if (startMins >= endMins) {
+            throw new Error('زمان شروع باید قبل از زمان پایان باشد');
+        }
+
         const res = await fetch(`${API_BASE}/sessions/${sessionData.id}/timeslots`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -302,9 +369,10 @@ window.submitDynamicTimeslot = async function () {
             throw new Error(err.error || 'خطا در افزودن زمان');
         }
 
+        showToast('زمان جدید با موفقیت اضافه شد', 'success');
         fetchSession(sessionData.id);
     } catch (err) {
-        alert(err.message);
+        showToast(err.message, 'error');
     }
 };
 
@@ -325,13 +393,13 @@ function renderCreateSessionForm() {
                 </div>
 
                 <div class="flex gap-4 mb-4 bg-gray-50 p-2 rounded">
-                    <label class="flex items-center gap-2 cursor-pointer flex-1 justify-center">
+                    <label class="flex items-center gap-2 cursor-pointer flex-1 justify-center bg-white p-2 rounded border hover:bg-gray-50 transition-colors">
                         <input type="radio" name="sessionType" value="fixed" checked onchange="toggleSessionType('fixed')">
-                        <span class="text-sm font-medium">چند زمانه</span>
+                        <span class="text-sm font-medium">زمان‌های مشخص</span>
                     </label>
-                    <label class="flex items-center gap-2 cursor-pointer flex-1 justify-center">
+                    <label class="flex items-center gap-2 cursor-pointer flex-1 justify-center bg-white p-2 rounded border hover:bg-gray-50 transition-colors">
                         <input type="radio" name="sessionType" value="dynamic" onchange="toggleSessionType('dynamic')">
-                        <span class="text-sm font-medium">تک روز</span>
+                        <span class="text-sm font-medium">بازه زمانی</span>
                     </label>
                 </div>
 
@@ -373,6 +441,37 @@ function renderCreateSessionForm() {
     `;
 
     addTimeslotInput();
+}
+
+function renderAdminDashboard(stats) {
+    app.innerHTML = `
+        <div class="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-lg">
+            <h2 class="text-3xl font-bold mb-8 text-gray-800 text-center border-b pb-4">داشبورد مدیریت</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-blue-50 p-6 rounded-xl border border-blue-100 text-center transform hover:scale-105 transition-transform">
+                    <div class="text-4xl font-bold text-blue-600 mb-2">${stats.total_sessions}</div>
+                    <div class="text-gray-600 font-medium">کل جلسات</div>
+                </div>
+                
+                <div class="bg-green-50 p-6 rounded-xl border border-green-100 text-center transform hover:scale-105 transition-transform">
+                    <div class="text-4xl font-bold text-green-600 mb-2">${stats.total_timeslots}</div>
+                    <div class="text-gray-600 font-medium">زمان‌های پیشنهادی</div>
+                </div>
+                
+                <div class="bg-purple-50 p-6 rounded-xl border border-purple-100 text-center transform hover:scale-105 transition-transform">
+                    <div class="text-4xl font-bold text-purple-600 mb-2">${stats.total_votes}</div>
+                    <div class="text-gray-600 font-medium">آرای ثبت شده</div>
+                </div>
+            </div>
+
+            <div class="mt-12 text-center">
+                <a href="/" class="inline-block px-6 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors">
+                    بازگشت به صفحه اصلی
+                </a>
+            </div>
+        </div>
+    `;
 }
 
 window.addTimeslotInput = function () {
@@ -424,7 +523,7 @@ window.submitCreateSession = async function () {
     const type = document.querySelector('input[name="sessionType"]:checked').value;
 
     if (!title || !creatorName) {
-        alert('لطفاً عنوان و نام خود را وارد کنید');
+        showToast('لطفاً عنوان و نام خود را وارد کنید', 'warning');
         return;
     }
 
@@ -452,8 +551,8 @@ window.submitCreateSession = async function () {
             });
         }
 
-        if (payload.timeslots.length === 0) {
-            alert('لطفاً حداقل یک زمان را مشخص کنید');
+        if (payload.timeslots.length < 2) {
+            showToast('لطفاً حداقل دو زمان را مشخص کنید تا کاربران حق انتخاب داشته باشند', 'warning');
             return;
         }
     } else {
@@ -489,13 +588,15 @@ window.submitCreateSession = async function () {
         const data = await res.json();
         window.location.href = `/${data.id}`;
     } catch (err) {
-        alert(err.message);
+        showToast(err.message, 'error');
     }
 };
 
 // Init
 const id = getSessionIDFromURL();
-if (id) {
+if (id === 'admin') {
+    fetchAdminStats();
+} else if (id) {
     fetchSession(id);
 } else {
     renderCreateSessionForm();
