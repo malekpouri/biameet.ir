@@ -244,6 +244,14 @@ function renderSession() {
             </div>
         `;
 
+        const minH = parseInt(dynamic_config.min_time.split(':')[0]);
+        const maxTimeParts = dynamic_config.max_time.split(':');
+        let maxH = parseInt(maxTimeParts[0]);
+        // If max time is exactly on the hour (e.g. 17:00), the start time cannot be 17:xx.
+        // So we reduce the max hour for the start picker by 1.
+        // If max time is 17:30, start time can be 17:00 or 17:15, so we keep 17.
+        const maxStartH = parseInt(maxTimeParts[1]) === 0 ? maxH - 1 : maxH;
+
         dynamicInput = `
             <div class="mt-8 border-t pt-6">
                 <h3 class="font-semibold text-gray-700 dark:text-gray-300 mb-4">پیشنهاد زمان جدید</h3>
@@ -251,12 +259,12 @@ function renderSession() {
                     <div class="flex gap-4 items-center justify-center mb-4">
                         <div class="flex flex-col items-center">
                             <span class="text-xs text-gray-500 dark:text-gray-400 mb-1">از ساعت</span>
-                            ${renderTimePicker('dynamic_start', 10, 0, parseInt(dynamic_config.min_time.split(':')[0]), parseInt(dynamic_config.max_time.split(':')[0]))}
+                            ${renderTimePicker('dynamic_start', 10, 0, minH, maxStartH)}
                         </div>
                         <div class="text-gray-400 mt-4">←</div>
                         <div class="flex flex-col items-center">
                             <span class="text-xs text-gray-500 dark:text-gray-400 mb-1">تا ساعت</span>
-                            ${renderTimePicker('dynamic_end', 11, 0, parseInt(dynamic_config.min_time.split(':')[0]), parseInt(dynamic_config.max_time.split(':')[0]))}
+                            ${renderTimePicker('dynamic_end', 11, 0, minH, maxH)}
                         </div>
                     </div>
                     <button onclick="submitDynamicTimeslot()" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 text-sm font-bold">
@@ -288,6 +296,11 @@ function renderSession() {
             </div>
         `;
 
+        const minH = parseInt(dynamic_config.min_time.split(':')[0]);
+        const maxTimeParts = dynamic_config.max_time.split(':');
+        let maxH = parseInt(maxTimeParts[0]);
+        const maxStartH = parseInt(maxTimeParts[1]) === 0 ? maxH - 1 : maxH;
+
         dynamicInput = `
             <div class="mt-8 border-t pt-6">
                 <h3 class="font-semibold text-gray-700 dark:text-gray-300 mb-4">پیشنهاد زمان جدید</h3>
@@ -301,12 +314,12 @@ function renderSession() {
                     <div class="flex gap-4 items-center justify-center mb-4">
                         <div class="flex flex-col items-center">
                             <span class="text-xs text-gray-500 dark:text-gray-400 mb-1">از ساعت</span>
-                            ${renderTimePicker('dynamic_start', 10, 0, parseInt(dynamic_config.min_time.split(':')[0]), parseInt(dynamic_config.max_time.split(':')[0]))}
+                            ${renderTimePicker('dynamic_start', 10, 0, minH, maxStartH)}
                         </div>
                         <div class="text-gray-400 mt-4">←</div>
                         <div class="flex flex-col items-center">
                             <span class="text-xs text-gray-500 dark:text-gray-400 mb-1">تا ساعت</span>
-                            ${renderTimePicker('dynamic_end', 11, 0, parseInt(dynamic_config.min_time.split(':')[0]), parseInt(dynamic_config.max_time.split(':')[0]))}
+                            ${renderTimePicker('dynamic_end', 11, 0, minH, maxH)}
                         </div>
                     </div>
                     <button onclick="submitDynamicTimeslot()" class="w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700 text-sm font-bold">
