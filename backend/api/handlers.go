@@ -1,6 +1,9 @@
 package api
 
 import (
+	"os"
+	"strings"
+
 	"biameet.ir/models"
 	"biameet.ir/services"
 	"github.com/gofiber/fiber/v2"
@@ -170,4 +173,42 @@ func GetAdminStatsHandler(c *fiber.Ctx) error {
 		})
 	}
 	return c.JSON(stats)
+}
+
+func ServeSessionPage(c *fiber.Ctx) error {
+	id := c.Params("id")
+	
+	// Default path to index.html. In Docker it's ./index.html (WORKDIR /root/).
+	// In local dev (running from backend dir), it might be ../frontend/src/index.html
+	// We can check which one exists.
+	indexPath := "index.html"
+	if _, err := os.Stat(indexPath); os.IsNotExist(err) {
+		// Try local dev path
+		indexPath = "../frontend/src/index.html"
+	}
+
+	content, err := os.ReadFile(indexPath)
+	if err != nil {
+		// If we can't find the file, we can't serve the page.
+		return c.Status(fiber.StatusInternalServerError).SendString("Error loading application")
+	}
+
+	html := string(content)
+
+	session, err := services.GetSession(id)
+	if err == nil {
+		// Session found, inject tags
+		title := session.Title + " | بیا میت"
+		description := "دعوت به جلسه توسط " + session.CreatorName
+
+		// Replace Title
+		html = strings.Replace(html, "BiaMeet | بیا میت", title, -1)
+		
+		// Replace Description (OG and Twitter)
+		// We target the specific string we put in index.html for OG/Twitter description
+		html = strings.Replace(html, "زمان‌بندی ساده جلسات. بدون نیاز به ثبت‌نام.", description, -1)
+	}
+
+	c.Set("Content-Type", "text/html")
+	return c.SendString(html)
 }

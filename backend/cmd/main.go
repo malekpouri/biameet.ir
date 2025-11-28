@@ -41,6 +41,9 @@ func main() {
 	v1.Post("/sessions/:id/timeslots", api.AddTimeslotHandler)
 	v1.Get("/admin/stats", api.GetAdminStatsHandler)
 
+	// Serve Session Page with Dynamic Meta Tags
+	app.Get("/:id", api.ServeSessionPage)
+
 	// Start server
 	port := os.Getenv("PORT")
 	if port == "" {
