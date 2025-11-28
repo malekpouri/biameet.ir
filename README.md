@@ -19,6 +19,7 @@ BiaMeet allows users to create sessions with multiple time slots and invite othe
   - Mobile-optimized responsive design.
   - Jalali (Persian) Calendar support.
   - Voter transparency (names displayed under votes).
+  - **Secure Voting**: Optional password protection for voters to securely edit their votes later.
 
 ## API Endpoints
 

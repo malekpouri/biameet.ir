@@ -26,9 +26,9 @@ function showToast(message, type = 'info') {
     };
     toast.className = `${colors[type]} text-white px-6 py-3 rounded shadow-lg transform transition-all duration-300 translate-y-10 opacity-0`;
     toast.innerText = message;
-    
+
     toastContainer.appendChild(toast);
-    
+
     // Animate in
     requestAnimationFrame(() => {
         toast.classList.remove('translate-y-10', 'opacity-0');
@@ -186,6 +186,8 @@ async function submitVote() {
         return;
     }
 
+    const password = document.getElementById('voterPasswordInput').value;
+
     const votes = Array.from(selectedTimeslots).map(id => ({
         timeslot_id: id,
         note: 'Yes'
@@ -197,13 +199,27 @@ async function submitVote() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 voter_name: voterName,
+                password: password,
                 votes: votes
             })
         });
 
         if (!res.ok) {
             const err = await res.json();
+            if (err.error === 'password_required') {
+                showToast('برای ویرایش رای، لطفاً رمز عبور خود را وارد کنید', 'warning');
+                document.getElementById('voterPasswordInput').focus();
+                return;
+            }
+            if (err.error === 'invalid_password') {
+                showToast('رمز عبور اشتباه است', 'error');
+                return;
+            }
             throw new Error(err.error || 'خطا در ثبت رای');
+        }
+
+        if (password) {
+            localStorage.setItem(`pwd_${sessionData.id}_${voterName}`, password);
         }
 
         showToast('رای شما با موفقیت ثبت شد', 'success');
@@ -278,7 +294,7 @@ function renderSession() {
         const allowedDays = (dynamic_config.allowed_days || []).map(d => daysMap[d]).join('، ');
 
         const dateOptions = (dynamic_config.allowed_days || []).map(dayIdx => {
-             return `<option value="${dayIdx}">${daysMap[dayIdx]}</option>`;
+            return `<option value="${dayIdx}">${daysMap[dayIdx]}</option>`;
         }).join('');
 
         dynamicHeader = `
@@ -364,6 +380,13 @@ function renderSession() {
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">نام شما:</label>
                 <input type="text" id="voterNameInput" class="w-full p-2 border rounded text-right dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="نام خود را وارد کنید...">
             </div>
+            <div class="mb-6">
+                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    رمز عبور (اختیاری)
+                    <span class="text-xs text-gray-500 font-normal">- برای ویرایش بعدی الزامی است</span>
+                 </label>
+                 <input type="password" id="voterPasswordInput" class="w-full p-2 border rounded text-right dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="رمز عبور...">
+            </div>
 
             <div class="space-y-3">
                 <h3 class="font-semibold text-gray-700">زمان‌های موجود:</h3>
@@ -411,6 +434,10 @@ function renderSession() {
     document.getElementById('voterNameInput').value = voterName;
     document.getElementById('voterNameInput').addEventListener('input', (e) => {
         voterName = e.target.value;
+        const savedPwd = localStorage.getItem(`pwd_${sessionData.id}_${voterName}`);
+        if (savedPwd) {
+            document.getElementById('voterPasswordInput').value = savedPwd;
+        }
     });
 }
 
@@ -424,7 +451,7 @@ window.toggleTimeslot = function (id) {
     renderSession();
 };
 
-window.copyLink = function() {
+window.copyLink = function () {
     const url = window.location.href;
     navigator.clipboard.writeText(url).then(() => {
         showToast('لینک کپی شد', 'success');
@@ -433,7 +460,7 @@ window.copyLink = function() {
     });
 };
 
-window.shareSession = function() {
+window.shareSession = function () {
     const url = window.location.href;
     if (navigator.share) {
         navigator.share({
@@ -464,20 +491,20 @@ window.submitDynamicTimeslot = async function () {
             showToast('لطفاً یک روز را انتخاب کنید', 'warning');
             return;
         }
-        
+
         // Find the first occurrence of this day on or after creation date to normalize
         const baseDate = new Date(sessionData.created_at_utc);
-        baseDate.setHours(0,0,0,0);
-        
+        baseDate.setHours(0, 0, 0, 0);
+
         // Calculate days to add
         // current day: baseDate.getDay()
         // target day: dayIdx
         let diff = dayIdx - baseDate.getDay();
         if (diff < 0) diff += 7;
-        
+
         const targetDate = new Date(baseDate);
         targetDate.setDate(baseDate.getDate() + diff);
-        
+
         const yyyy = targetDate.getFullYear();
         const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
         const dd = String(targetDate.getDate()).padStart(2, '0');
@@ -770,14 +797,14 @@ window.submitCreateSession = async function () {
         const startTime = getTimeFromPicker('weekly_start');
         const endTime = getTimeFromPicker('weekly_end');
         const durationWeeks = parseInt(document.getElementById('linkDurationWeeks').value) || 4;
-        
+
         // Calculate expiration
         const expirationDate = new Date();
         expirationDate.setDate(expirationDate.getDate() + (durationWeeks * 7));
         payload.expires_at_utc = expirationDate.toISOString();
 
         const selectedDays = Array.from(checkboxes).map(cb => parseInt(cb.value));
-        
+
         payload.type = 'weekly';
         payload.dynamic_config = {
             min_time: startTime,

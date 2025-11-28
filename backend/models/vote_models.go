@@ -2,6 +2,7 @@ package models
 
 type VoteRequest struct {
 	VoterName string     `json:"voter_name"`
+	Password  string     `json:"password,omitempty"`
 	Votes     []VoteItem `json:"votes"`
 }
 
