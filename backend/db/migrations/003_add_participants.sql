@@ -7,6 +7,3 @@ CREATE TABLE IF NOT EXISTS participants (
     PRIMARY KEY (session_id, name),
     FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE
 );
-
--- Down
-DROP TABLE IF EXISTS participants;
