@@ -195,6 +195,17 @@ async function fetchSession(id) {
         const res = await fetch(`${API_BASE}/sessions/${id}`);
         if (!res.ok) throw new Error('Session not found');
         sessionData = await res.json();
+        
+        // Prune selectedTimeslots to remove IDs that no longer exist
+        if (sessionData.timeslots) {
+            const validIds = new Set(sessionData.timeslots.map(ts => ts.id));
+            for (const id of selectedTimeslots) {
+                if (!validIds.has(id)) {
+                    selectedTimeslots.delete(id);
+                }
+            }
+        }
+        
         renderSession();
     } catch (err) {
         app.innerHTML = `<div class="text-red-500 text-center mt-10">${err.message}</div>`;
@@ -575,6 +586,10 @@ window.deleteTimeslot = async function (e, id) {
                 throw new Error(err.error || 'خطا در حذف زمان');
             }
             showToast('زمان با موفقیت حذف شد', 'success');
+            // Remove from selectedTimeslots immediately
+            if (selectedTimeslots.has(id)) {
+                selectedTimeslots.delete(id);
+            }
             fetchSession(sessionData.id);
         } catch (err) {
             showToast(err.message, 'error');
