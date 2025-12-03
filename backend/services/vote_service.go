@@ -64,6 +64,10 @@ func SubmitVote(sessionID string, req models.VoteRequest) error {
 			if err != nil {
 				return fmt.Errorf("invalid_password") // Specific error
 			}
+		} else {
+			// User exists but has no password set.
+			// Prevent editing to avoid impersonation.
+			return fmt.Errorf("name_taken_no_password")
 		}
 
 		// Delete existing votes for this user in this session

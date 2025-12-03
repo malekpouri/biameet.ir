@@ -39,6 +39,7 @@ func main() {
 	v1.Get("/sessions/:id", api.GetSessionHandler)
 	v1.Post("/sessions/:id/vote", api.VoteHandler)
 	v1.Post("/sessions/:id/timeslots", api.AddTimeslotHandler)
+	v1.Delete("/sessions/:id/timeslots/:ts_id", api.DeleteTimeslotHandler)
 	v1.Get("/admin/stats", api.GetAdminStatsHandler)
 
 	// Serve Session Page with Dynamic Meta Tags

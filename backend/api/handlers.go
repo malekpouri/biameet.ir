@@ -98,6 +98,35 @@ func AddTimeslotHandler(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(ts)
 }
 
+func DeleteTimeslotHandler(c *fiber.Ctx) error {
+	id := c.Params("id")
+	tsID := c.Params("ts_id")
+	if id == "" || tsID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Session ID and Timeslot ID are required",
+		})
+	}
+
+	err := services.DeleteTimeslot(id, tsID)
+	if err != nil {
+		if err.Error() == "timeslot not found" {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Timeslot not found",
+			})
+		}
+		if err.Error() == "cannot delete timeslot with existing votes" {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"error": "Cannot delete timeslot with existing votes",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{"status": "ok"})
+}
+
 func GetSessionHandler(c *fiber.Ctx) error {
 	id := c.Params("id")
 	if id == "" {
@@ -142,11 +171,12 @@ func VoteHandler(c *fiber.Ctx) error {
 		})
 	}
 
-	if len(req.Votes) == 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "At least one vote is required",
-		})
-	}
+	// Allow empty votes to support withdrawal
+	// if len(req.Votes) == 0 {
+	// 	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	// 		"error": "At least one vote is required",
+	// 	})
+	// }
 
 	err := services.SubmitVote(id, req)
 	if err != nil {
@@ -177,7 +207,7 @@ func GetAdminStatsHandler(c *fiber.Ctx) error {
 
 func ServeSessionPage(c *fiber.Ctx) error {
 	id := c.Params("id")
-	
+
 	// Default path to index.html. In Docker it's ./index.html (WORKDIR /root/).
 	// In local dev (running from backend dir), it might be ../frontend/src/index.html
 	// We can check which one exists.
@@ -203,7 +233,7 @@ func ServeSessionPage(c *fiber.Ctx) error {
 
 		// Replace Title
 		html = strings.Replace(html, "BiaMeet | بیا میت", title, -1)
-		
+
 		// Replace Description (OG and Twitter)
 		// We target the specific string we put in index.html for OG/Twitter description
 		html = strings.Replace(html, "زمان‌بندی ساده جلسات. بدون نیاز به ثبت‌نام.", description, -1)

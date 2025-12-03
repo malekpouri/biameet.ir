@@ -99,3 +99,28 @@ func AddTimeslot(sessionID string, req models.TimeslotRequest) (*models.Timeslot
 		EndUTC:    req.EndUTC,
 	}, nil
 }
+
+func DeleteTimeslot(sessionID, timeslotID string) error {
+	// Check if timeslot exists and belongs to session
+	var count int
+	err := db.DB.QueryRow("SELECT COUNT(*) FROM timeslots WHERE id = ? AND session_id = ?", timeslotID, sessionID).Scan(&count)
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return fmt.Errorf("timeslot not found")
+	}
+
+	// Check if timeslot has votes
+	var voteCount int
+	err = db.DB.QueryRow("SELECT COUNT(*) FROM votes WHERE timeslot_id = ?", timeslotID).Scan(&voteCount)
+	if err != nil {
+		return err
+	}
+	if voteCount > 0 {
+		return fmt.Errorf("cannot delete timeslot with existing votes")
+	}
+
+	_, err = db.DB.Exec("DELETE FROM timeslots WHERE id = ?", timeslotID)
+	return err
+}

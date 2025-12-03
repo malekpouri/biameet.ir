@@ -4,6 +4,7 @@ const API_BASE = '/api/v1';
 let sessionData = null;
 let selectedTimeslots = new Set();
 let voterName = '';
+let voterPassword = '';
 
 // DOM Elements
 const app = document.getElementById('app');
@@ -39,6 +40,41 @@ function showToast(message, type = 'info') {
         toast.classList.add('translate-y-10', 'opacity-0');
         setTimeout(() => toast.remove(), 300);
     }, 3000);
+}
+
+function showConfirmToast(message, onConfirm) {
+    const toast = document.createElement('div');
+    toast.className = 'bg-yellow-600 text-white px-6 py-4 rounded shadow-lg transform transition-all duration-300 translate-y-10 opacity-0 flex flex-col gap-3';
+
+    const msgDiv = document.createElement('div');
+    msgDiv.innerText = message;
+    toast.appendChild(msgDiv);
+
+    const btnContainer = document.createElement('div');
+    btnContainer.className = 'flex gap-2 justify-end';
+
+    const yesBtn = document.createElement('button');
+    yesBtn.className = 'bg-white text-yellow-600 px-3 py-1 rounded text-sm font-bold hover:bg-gray-100';
+    yesBtn.innerText = 'بله، حذف کن';
+    yesBtn.onclick = () => {
+        toast.remove();
+        onConfirm();
+    };
+
+    const noBtn = document.createElement('button');
+    noBtn.className = 'bg-yellow-700 text-white px-3 py-1 rounded text-sm hover:bg-yellow-800';
+    noBtn.innerText = 'لغو';
+    noBtn.onclick = () => toast.remove();
+
+    btnContainer.appendChild(noBtn);
+    btnContainer.appendChild(yesBtn);
+    toast.appendChild(btnContainer);
+
+    toastContainer.appendChild(toast);
+
+    requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-10', 'opacity-0');
+    });
 }
 
 // Utils
@@ -176,67 +212,9 @@ async function fetchAdminStats() {
     }
 }
 
-async function submitVote() {
-    if (!voterName) {
-        showToast('لطفاً نام خود را وارد کنید', 'warning');
-        return;
-    }
-    if (selectedTimeslots.size === 0) {
-        showToast('لطفاً حداقل یک زمان را انتخاب کنید', 'warning');
-        return;
-    }
-
-    const password = document.getElementById('voterPasswordInput').value;
-
-    const votes = Array.from(selectedTimeslots).map(id => ({
-        timeslot_id: id,
-        note: 'Yes'
-    }));
-
-    try {
-        const res = await fetch(`${API_BASE}/sessions/${sessionData.id}/vote`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                voter_name: voterName,
-                password: password,
-                votes: votes
-            })
-        });
-
-        if (!res.ok) {
-            const err = await res.json();
-            if (err.error === 'password_required') {
-                showToast('برای ویرایش رای، لطفاً رمز عبور خود را وارد کنید', 'warning');
-                document.getElementById('voterPasswordInput').focus();
-                return;
-            }
-            if (err.error === 'invalid_password') {
-                showToast('رمز عبور اشتباه است', 'error');
-                return;
-            }
-            throw new Error(err.error || 'خطا در ثبت رای');
-        }
-
-        if (password) {
-            localStorage.setItem(`pwd_${sessionData.id}_${voterName}`, password);
-        }
-
-        showToast('رای شما با موفقیت ثبت شد', 'success');
-        // Refresh data without reload
-        fetchSession(sessionData.id);
-        selectedTimeslots.clear();
-    } catch (err) {
-        showToast(err.message, 'error');
-    }
-}
-
-// Renderers
 function renderSession() {
-    if (!sessionData) return;
-
-    const { title, creator_name, timeslots = [], type, dynamic_config } = sessionData;
-
+    const { title, creator_name, type, timeslots: _timeslots, dynamic_config } = sessionData;
+    const timeslots = _timeslots || [];
     const voteCounts = {};
     timeslots.forEach(ts => {
         voteCounts[ts.id] = (ts.votes || []).length;
@@ -245,103 +223,72 @@ function renderSession() {
     let dynamicHeader = '';
     let dynamicInput = '';
 
-    if (type === 'dynamic' && dynamic_config) {
-        const date = new Date(dynamic_config.date_utc);
-        const j = jalaali.toJalaali(date);
+    if (type === 'dynamic') {
         dynamicHeader = `
-            <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg mb-6 border border-blue-100 dark:border-blue-800">
-                <div class="text-center">
-                    <span class="block text-gray-500 dark:text-gray-400 text-sm mb-1">تاریخ انتخابی</span>
-                    <span class="text-xl font-bold text-blue-800 dark:text-blue-300">${j.jy}/${j.jm}/${j.jd}</span>
-                </div>
-                <div class="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+            <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded mb-6 border border-blue-100 dark:border-blue-800">
+                <h3 class="font-bold text-blue-800 dark:text-blue-300 mb-2">اطلاعات زمان‌بندی:</h3>
+                <p class="text-sm text-blue-700 dark:text-blue-400">
+                    تاریخ: ${formatJalaliDate(dynamic_config.date_utc)}<br>
                     بازه مجاز: ${dynamic_config.min_time} تا ${dynamic_config.max_time}
-                </div>
+                </p>
             </div>
         `;
-
-        const minH = parseInt(dynamic_config.min_time.split(':')[0]);
-        const maxTimeParts = dynamic_config.max_time.split(':');
-        let maxH = parseInt(maxTimeParts[0]);
-        // If max time is exactly on the hour (e.g. 17:00), the start time cannot be 17:xx.
-        // So we reduce the max hour for the start picker by 1.
-        // If max time is 17:30, start time can be 17:00 or 17:15, so we keep 17.
-        const maxStartH = parseInt(maxTimeParts[1]) === 0 ? maxH - 1 : maxH;
-
         dynamicInput = `
-            <div class="mt-8 border-t pt-6">
-                <h3 class="font-semibold text-gray-700 dark:text-gray-300 mb-4">پیشنهاد زمان جدید</h3>
-                <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded border dark:border-gray-600">
-                    <div class="flex gap-4 items-center justify-center mb-4">
-                        <div class="flex flex-col items-center">
-                            <span class="text-xs text-gray-500 dark:text-gray-400 mb-1">از ساعت</span>
-                            ${renderTimePicker('dynamic_start', 10, 0, minH, maxStartH)}
-                        </div>
-                        <div class="text-gray-400 mt-4">←</div>
-                        <div class="flex flex-col items-center">
-                            <span class="text-xs text-gray-500 dark:text-gray-400 mb-1">تا ساعت</span>
-                            ${renderTimePicker('dynamic_end', 11, 0, minH, maxH)}
-                        </div>
+            <div class="mt-6 border-t pt-6">
+                <h3 class="font-bold text-gray-800 dark:text-white mb-4">افزودن زمان پیشنهادی جدید:</h3>
+                <div class="flex gap-4 items-center justify-center mb-4">
+                    <div class="flex flex-col items-center">
+                        <span class="text-xs text-gray-500 dark:text-gray-400 mb-1">شروع</span>
+                        ${renderTimePicker('dynamic_start', 9, 0)}
                     </div>
-                    <button onclick="submitDynamicTimeslot()" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 text-sm font-bold">
-                        افزودن زمان
-                    </button>
+                    <div class="text-gray-400 mt-4">←</div>
+                    <div class="flex flex-col items-center">
+                        <span class="text-xs text-gray-500 dark:text-gray-400 mb-1">پایان</span>
+                        ${renderTimePicker('dynamic_end', 10, 0)}
+                    </div>
                 </div>
+                <button onclick="submitDynamicTimeslot()" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition-colors">
+                    + افزودن زمان
+                </button>
             </div>
         `;
-    } else if (type === 'weekly' && dynamic_config) {
-        const daysMap = ['یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه', 'شنبه'];
-        const allowedDays = (dynamic_config.allowed_days || []).map(d => daysMap[d]).join('، ');
-
-        const dateOptions = (dynamic_config.allowed_days || []).map(dayIdx => {
-            return `<option value="${dayIdx}">${daysMap[dayIdx]}</option>`;
+    } else if (type === 'weekly') {
+        const days = dynamic_config.allowed_days.map(d => {
+            const dayNames = ['یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه', 'شنبه'];
+            return `<option value="${d}">${dayNames[d]}</option>`;
         }).join('');
 
         dynamicHeader = `
-            <div class="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg mb-6 border border-purple-100 dark:border-purple-800">
-                <div class="text-center">
-                    <span class="block text-gray-500 dark:text-gray-400 text-sm mb-1">الگوی هفتگی</span>
-                    <span class="text-lg font-bold text-purple-800 dark:text-purple-300">${allowedDays}</span>
-                </div>
-                <div class="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+            <div class="bg-purple-50 dark:bg-purple-900/20 p-4 rounded mb-6 border border-purple-100 dark:border-purple-800">
+                <h3 class="font-bold text-purple-800 dark:text-purple-300 mb-2">الگوی هفتگی:</h3>
+                <p class="text-sm text-purple-700 dark:text-purple-400">
                     بازه مجاز: ${dynamic_config.min_time} تا ${dynamic_config.max_time}
-                </div>
-                <div class="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center">
-                    لطفاً یکی از روزهای مجاز را انتخاب کنید و ساعت پیشنهادی خود را وارد نمایید.
-                </div>
+                </p>
             </div>
         `;
-
-        const minH = parseInt(dynamic_config.min_time.split(':')[0]);
-        const maxTimeParts = dynamic_config.max_time.split(':');
-        let maxH = parseInt(maxTimeParts[0]);
-        const maxStartH = parseInt(maxTimeParts[1]) === 0 ? maxH - 1 : maxH;
-
         dynamicInput = `
-            <div class="mt-8 border-t pt-6">
-                <h3 class="font-semibold text-gray-700 dark:text-gray-300 mb-4">پیشنهاد زمان جدید</h3>
-                <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded border dark:border-gray-600">
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">انتخاب روز</label>
-                        <select id="weekly_date_select" class="w-full p-2 border rounded dark:bg-gray-600 dark:border-gray-500 dark:text-white">
-                            ${dateOptions}
-                        </select>
-                    </div>
-                    <div class="flex gap-4 items-center justify-center mb-4">
-                        <div class="flex flex-col items-center">
-                            <span class="text-xs text-gray-500 dark:text-gray-400 mb-1">از ساعت</span>
-                            ${renderTimePicker('dynamic_start', 10, 0, minH, maxStartH)}
-                        </div>
-                        <div class="text-gray-400 mt-4">←</div>
-                        <div class="flex flex-col items-center">
-                            <span class="text-xs text-gray-500 dark:text-gray-400 mb-1">تا ساعت</span>
-                            ${renderTimePicker('dynamic_end', 11, 0, minH, maxH)}
-                        </div>
-                    </div>
-                    <button onclick="submitDynamicTimeslot()" class="w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700 text-sm font-bold">
-                        افزودن زمان
-                    </button>
+            <div class="mt-6 border-t pt-6">
+                <h3 class="font-bold text-gray-800 dark:text-white mb-4">افزودن زمان پیشنهادی جدید:</h3>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">روز هفته</label>
+                    <select id="weekly_date_select" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                        ${days}
+                    </select>
                 </div>
+                <div class="flex gap-4 items-center justify-center mb-4">
+                    <div class="flex flex-col items-center">
+                        <span class="text-xs text-gray-500 dark:text-gray-400 mb-1">شروع</span>
+                        ${renderTimePicker('dynamic_start', 9, 0)}
+                    </div>
+                    <div class="text-gray-400 mt-4">←</div>
+                    <div class="flex flex-col items-center">
+                        <span class="text-xs text-gray-500 dark:text-gray-400 mb-1">پایان</span>
+                        ${renderTimePicker('dynamic_end', 10, 0)}
+                    </div>
+                </div>
+                <button onclick="submitDynamicTimeslot()" class="w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700 transition-colors">
+                    + افزودن زمان
+                </button>
             </div>
         `;
     }
@@ -360,17 +307,29 @@ function renderSession() {
 
             ${type === 'fixed' ? `
                 <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded mb-6 text-sm text-gray-600 dark:text-gray-300 border dark:border-gray-600">
-                    <span class="font-bold">راهنما:</span> لطفاً زمان‌های مناسب خود را از لیست زیر انتخاب کنید و دکمه ثبت رای را بزنید.
+                    <span class="font-bold">راهنما:</span> لطفاً زمان‌های مناسب خود را انتخاب کنید و دکمه ثبت رای را بزنید.
+                    <br>
+                    <span class="text-xs mt-1 block text-gray-500 dark:text-gray-400">
+                    * برای ویرایش یا حذف رای خود در آینده، لطفاً یک رمز عبور تعیین کنید. با وارد کردن مجدد نام و رمز عبور، می‌توانید رای خود را تغییر دهید یا با دکمه سطل زباله آن را حذف کنید.
+                    </span>
                 </div>
             ` : ''}
             ${type === 'dynamic' ? `
                 <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded mb-6 text-sm text-blue-800 dark:text-blue-300 border border-blue-100 dark:border-blue-800">
                     <span class="font-bold">راهنما:</span> شما می‌توانید علاوه بر انتخاب زمان‌های موجود، زمان پیشنهادی خود را در بازه مجاز اضافه کنید.
+                    <br>
+                    <span class="text-xs mt-1 block text-blue-600 dark:text-blue-400">
+                    * برای ویرایش یا حذف رای خود در آینده، لطفاً یک رمز عبور تعیین کنید.
+                    </span>
                 </div>
             ` : ''}
             ${type === 'weekly' ? `
                 <div class="bg-purple-50 dark:bg-purple-900/20 p-3 rounded mb-6 text-sm text-purple-800 dark:text-purple-300 border border-purple-100 dark:border-purple-800">
                     <span class="font-bold">راهنما:</span> روزهای مجاز در بالا نمایش داده شده‌اند. می‌توانید از لیست پایین، یک روز خاص را انتخاب کرده و ساعت پیشنهادی خود را اضافه کنید.
+                    <br>
+                    <span class="text-xs mt-1 block text-purple-600 dark:text-purple-400">
+                    * برای ویرایش یا حذف رای خود در آینده، لطفاً یک رمز عبور تعیین کنید.
+                    </span>
                 </div>
             ` : ''}
 
@@ -396,9 +355,16 @@ function renderSession() {
         const count = voteCounts[ts.id] || 0;
         const voters = (ts.votes || []).map(v => v.voter_name);
 
+        const canDelete = (type === 'dynamic' || type === 'weekly') && (ts.votes || []).length === 0;
+
         return `
-                    <div class="timeslot-card border rounded p-3 cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 border-blue-500' : 'hover:bg-gray-50'}"
-                         onclick="toggleTimeslot('${ts.id}')">
+                    <div class="timeslot-card border rounded p-3 cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 border-blue-500' : 'hover:bg-gray-50'} relative group"
+                         onclick="toggleTimeslot('${ts.id}')" id="ts-card-${ts.id}">
+                        ${canDelete ? `
+                        <button onclick="deleteTimeslot(event, '${ts.id}')" class="absolute top-2 left-2 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity p-1 z-10" title="حذف زمان">
+                            🗑️
+                        </button>
+                        ` : ''}
                         <div class="flex flex-col sm:flex-row justify-between items-center gap-2">
                             <div>
                                 <div class="text-sm text-gray-500 dark:text-gray-400 mb-1 text-right">
@@ -410,7 +376,7 @@ function renderSession() {
                                 <span class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs">
                                     ${count} رای
                                 </span>
-                                ${isSelected ? '<span class="text-blue-600">✓</span>' : ''}
+                                <span class="text-blue-600 checkmark-icon ${isSelected ? '' : 'hidden'}">✓</span>
                             </div>
                         </div>
                         ${voters.length > 0 ? `
@@ -426,7 +392,7 @@ function renderSession() {
             ${dynamicInput}
 
             <button onclick="submitVote()" class="mt-8 w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 font-bold shadow-lg transition-transform transform hover:scale-105">
-                ثبت رای
+                ثبت / ویرایش رای
             </button>
         </div>
     `;
@@ -436,8 +402,28 @@ function renderSession() {
         voterName = e.target.value;
         const savedPwd = localStorage.getItem(`pwd_${sessionData.id}_${voterName}`);
         if (savedPwd) {
-            document.getElementById('voterPasswordInput').value = savedPwd;
+            voterPassword = savedPwd;
+            document.getElementById('voterPasswordInput').value = voterPassword;
         }
+
+        // Load existing votes
+        if (voterName) {
+            const userVotes = [];
+            sessionData.timeslots.forEach(ts => {
+                if ((ts.votes || []).some(v => v.voter_name === voterName)) {
+                    userVotes.push(ts.id);
+                }
+            });
+            if (userVotes.length > 0) {
+                selectedTimeslots = new Set(userVotes);
+                updateSelectionVisuals();
+            }
+        }
+    });
+
+    document.getElementById('voterPasswordInput').value = voterPassword;
+    document.getElementById('voterPasswordInput').addEventListener('input', (e) => {
+        voterPassword = e.target.value;
     });
 }
 
@@ -557,6 +543,107 @@ window.submitDynamicTimeslot = async function () {
     }
 };
 
+window.updateSelectionVisuals = function () {
+    sessionData.timeslots.forEach(ts => {
+        const card = document.getElementById(`ts-card-${ts.id}`);
+        if (card) {
+            const isSelected = selectedTimeslots.has(ts.id);
+            const checkmark = card.querySelector('.checkmark-icon');
+
+            if (isSelected) {
+                card.classList.remove('hover:bg-gray-50');
+                card.classList.add('bg-blue-50', 'border-blue-500');
+                if (checkmark) checkmark.classList.remove('hidden');
+            } else {
+                card.classList.remove('bg-blue-50', 'border-blue-500');
+                card.classList.add('hover:bg-gray-50');
+                if (checkmark) checkmark.classList.add('hidden');
+            }
+        }
+    });
+};
+
+window.deleteTimeslot = async function (e, id) {
+    e.stopPropagation();
+    showConfirmToast('آیا از حذف این زمان اطمینان دارید؟', async () => {
+        try {
+            const res = await fetch(`${API_BASE}/sessions/${sessionData.id}/timeslots/${id}`, {
+                method: 'DELETE'
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'خطا در حذف زمان');
+            }
+            showToast('زمان با موفقیت حذف شد', 'success');
+            fetchSession(sessionData.id);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    });
+};
+
+window.submitVote = async function () {
+    if (!voterName) {
+        showToast('لطفاً نام خود را وارد کنید', 'warning');
+        return;
+    }
+
+    const votes = Array.from(selectedTimeslots).map(id => ({
+        timeslot_id: id,
+        note: ''
+    }));
+
+    // Withdrawal logic
+    if (votes.length === 0) {
+        showConfirmToast('آیا مطمئن هستید که می‌خواهید تمام رای‌های خود را حذف کنید؟', async () => {
+            await sendVoteRequest(votes);
+        });
+        return;
+    }
+
+    await sendVoteRequest(votes);
+};
+
+async function sendVoteRequest(votes) {
+    try {
+        const res = await fetch(`${API_BASE}/sessions/${sessionData.id}/vote`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                voter_name: voterName,
+                password: voterPassword,
+                votes: votes
+            })
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            if (err.error === 'password_required') {
+                showToast('برای ویرایش رای، وارد کردن رمز عبور الزامی است', 'error');
+                document.getElementById('voterPasswordInput').focus();
+            } else if (err.error === 'invalid_password') {
+                showToast('رمز عبور اشتباه است', 'error');
+                document.getElementById('voterPasswordInput').focus();
+            } else if (err.error === 'name_taken_no_password') {
+                showToast('این نام قبلاً ثبت شده و بدون رمز عبور است. امکان ویرایش وجود ندارد.', 'error');
+            } else {
+                throw new Error(err.error || 'خطا در ثبت رای');
+            }
+            return;
+        }
+
+        // Save password if provided
+        if (voterPassword) {
+            localStorage.setItem(`pwd_${sessionData.id}_${voterName}`, voterPassword);
+        }
+
+        showToast('رای شما با موفقیت ثبت شد', 'success');
+        fetchSession(sessionData.id);
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
 function renderCreateSessionForm() {
     app.innerHTML = `
         <div class="max-w-2xl mx-auto bg-white p-6 rounded-lg shadow">
@@ -587,12 +674,12 @@ function renderCreateSessionForm() {
                     </label>
                 </div>
 
-                <!-- Type Descriptions -->
+                <!--Type Descriptions-->
                 <div id="typeDescription" class="mb-4 text-sm text-gray-600 bg-blue-50 p-3 rounded border border-blue-100">
                     در این حالت شما چند زمان مشخص را پیشنهاد می‌دهید و شرکت‌کنندگان می‌توانند به آن‌ها رای دهند.
                 </div>
 
-                <!-- Fixed Times Section -->
+                <!--Fixed Times Section-->
                 <div id="fixedTimeSection">
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">زمان‌های پیشنهادی</label>
                     <div id="timeslotsContainer" class="space-y-4">
@@ -603,7 +690,7 @@ function renderCreateSessionForm() {
                     </button>
                 </div>
 
-                <!-- Weekly Section -->
+                <!--Weekly Section-->
                 <div id="weeklyTimeSection" class="hidden space-y-4 border p-4 rounded bg-purple-50 dark:bg-purple-900/20 dark:border-purple-800">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">روزهای هفته</label>
@@ -636,7 +723,7 @@ function renderCreateSessionForm() {
                     </div>
                 </div>
 
-                <!-- Dynamic Time Section -->
+                <!--Dynamic Time Section-->
                 <div id="dynamicTimeSection" class="hidden space-y-4 border p-4 rounded bg-blue-50 dark:bg-blue-900/20 dark:border-blue-800">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">تاریخ جلسه</label>
@@ -658,16 +745,16 @@ function renderCreateSessionForm() {
                 <button onclick="submitCreateSession()" class="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 font-bold shadow-lg mt-6">
                     ایجاد جلسه
                 </button>
-            </div>
-        </div>
-    `;
+            </div >
+        </div >
+                `;
 
     addTimeslotInput();
 }
 
 function renderAdminDashboard(stats) {
     app.innerHTML = `
-        <div class="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-lg">
+                <div class="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-lg">
             <h2 class="text-3xl font-bold mb-8 text-gray-800 text-center border-b pb-4">داشبورد مدیریت</h2>
             
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -692,8 +779,8 @@ function renderAdminDashboard(stats) {
                     بازگشت به صفحه اصلی
                 </a>
             </div>
-        </div>
-    `;
+        </div >
+                `;
 }
 
 window.addTimeslotInput = function () {
@@ -722,7 +809,7 @@ window.addTimeslotInput = function () {
                 ${renderTimePicker(`ts_${id}_end`, 11, 0)}
             </div>
         </div>
-    `;
+            `;
     container.appendChild(div);
 };
 
