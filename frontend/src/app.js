@@ -193,7 +193,7 @@ function jalaliToISO(jDate, timeStr) {
 async function fetchSession(id) {
     try {
         const res = await fetch(`${API_BASE}/sessions/${id}`);
-        if (!res.ok) throw new Error('Session not found');
+        if (!res.ok) throw new Error('جلسه مورد نظر یافت نشد');
         sessionData = await res.json();
 
         // Prune selectedTimeslots to remove IDs that no longer exist
