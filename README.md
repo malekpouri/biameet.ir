@@ -20,6 +20,7 @@ BiaMeet allows users to create sessions with multiple time slots and invite othe
   - Jalali (Persian) Calendar support.
   - Voter transparency (names displayed under votes).
   - **Secure Voting**: Optional password protection for voters to securely edit their votes later.
+  - **Secure Timeslots**: Participants can propose timeslots with their name and password, allowing them to delete their own proposals later.
 
 ## API Endpoints
 

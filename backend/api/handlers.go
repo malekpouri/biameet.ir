@@ -107,7 +107,13 @@ func DeleteTimeslotHandler(c *fiber.Ctx) error {
 		})
 	}
 
-	err := services.DeleteTimeslot(id, tsID)
+	var req struct {
+		Password string `json:"password"`
+	}
+	// Attempt to parse body, ignore error if body is empty or invalid JSON (treat as no password)
+	c.BodyParser(&req)
+
+	err := services.DeleteTimeslot(id, tsID, req.Password)
 	if err != nil {
 		if err.Error() == "timeslot not found" {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -117,6 +123,16 @@ func DeleteTimeslotHandler(c *fiber.Ctx) error {
 		if err.Error() == "cannot delete timeslot with existing votes" {
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
 				"error": "Cannot delete timeslot with existing votes",
+			})
+		}
+		if err.Error() == "password_required" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "password_required",
+			})
+		}
+		if err.Error() == "invalid_password" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "invalid_password",
 			})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

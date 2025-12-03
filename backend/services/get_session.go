@@ -48,7 +48,7 @@ func GetSession(id string) (*models.Session, error) {
 
 	// 2. Get Timeslots
 	rows, err := db.DB.Query(`
-		SELECT id, session_id, start_utc, end_utc
+		SELECT id, session_id, start_utc, end_utc, created_by
 		FROM timeslots WHERE session_id = ?
 	`, id)
 	if err != nil {
@@ -61,8 +61,12 @@ func GetSession(id string) (*models.Session, error) {
 
 	for rows.Next() {
 		var ts models.Timeslot
-		if err := rows.Scan(&ts.ID, &ts.SessionID, &ts.StartUTC, &ts.EndUTC); err != nil {
+		var createdBy sql.NullString
+		if err := rows.Scan(&ts.ID, &ts.SessionID, &ts.StartUTC, &ts.EndUTC, &createdBy); err != nil {
 			return nil, err
+		}
+		if createdBy.Valid {
+			ts.CreatedBy = createdBy.String
 		}
 		ts.Votes = []models.Vote{} // Initialize empty slice
 		timeslots = append(timeslots, ts)

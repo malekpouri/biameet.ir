@@ -195,7 +195,7 @@ async function fetchSession(id) {
         const res = await fetch(`${API_BASE}/sessions/${id}`);
         if (!res.ok) throw new Error('Session not found');
         sessionData = await res.json();
-        
+
         // Prune selectedTimeslots to remove IDs that no longer exist
         if (sessionData.timeslots) {
             const validIds = new Set(sessionData.timeslots.map(ts => ts.id));
@@ -205,7 +205,7 @@ async function fetchSession(id) {
                 }
             }
         }
-        
+
         renderSession();
     } catch (err) {
         app.innerHTML = `<div class="text-red-500 text-center mt-10">${err.message}</div>`;
@@ -382,6 +382,7 @@ function renderSession() {
                                     ${type === 'weekly' ? getDayName(new Date(ts.start_utc)) : formatJalaliDate(ts.start_utc)}
                                 </div>
                                 <div class="font-bold text-gray-800 dark:text-white">${formatTime(ts.start_utc)} - ${formatTime(ts.end_utc)}</div>
+                                ${ts.created_by ? `<div class="text-xs text-gray-400 mt-1">پیشنهاد دهنده: ${ts.created_by}</div>` : ''}
                             </div>
                             <div class="flex items-center space-x-2 space-x-reverse">
                                 <span class="bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs">
@@ -533,12 +534,20 @@ window.submitDynamicTimeslot = async function () {
             throw new Error('زمان شروع باید قبل از زمان پایان باشد');
         }
 
+        if (!voterName) {
+            showToast('لطفاً نام خود را وارد کنید', 'warning');
+            document.getElementById('voterNameInput').focus();
+            return;
+        }
+
         const res = await fetch(`${API_BASE}/sessions/${sessionData.id}/timeslots`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 start_utc: startUTC,
-                end_utc: endUTC
+                end_utc: endUTC,
+                created_by: voterName,
+                password: voterPassword
             })
         });
 
@@ -579,10 +588,21 @@ window.deleteTimeslot = async function (e, id) {
     showConfirmToast('آیا از حذف این زمان اطمینان دارید؟', async () => {
         try {
             const res = await fetch(`${API_BASE}/sessions/${sessionData.id}/timeslots/${id}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: voterPassword })
             });
             if (!res.ok) {
                 const err = await res.json();
+                if (err.error === 'password_required') {
+                    showToast('برای حذف این زمان، وارد کردن رمز عبور الزامی است', 'error');
+                    document.getElementById('voterPasswordInput').focus();
+                    return;
+                } else if (err.error === 'invalid_password') {
+                    showToast('رمز عبور اشتباه است', 'error');
+                    document.getElementById('voterPasswordInput').focus();
+                    return;
+                }
                 throw new Error(err.error || 'خطا در حذف زمان');
             }
             showToast('زمان با موفقیت حذف شد', 'success');

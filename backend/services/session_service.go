@@ -1,6 +1,6 @@
 package services
 
-import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -9,7 +9,7 @@ import (
 	"biameet.ir/models"
 	"biameet.ir/utils"
 	"github.com/google/uuid"
-)
+	"golang.org/x/crypto/bcrypt"
 
 func CreateSession(req models.CreateSessionRequest) (*models.CreateSessionResponse, error) {
 	sessionID := utils.GenerateShortID(5)
@@ -84,10 +84,20 @@ func AddTimeslot(sessionID string, req models.TimeslotRequest) (*models.Timeslot
 
 	tsID := uuid.New().String()
 
+	var passwordHash sql.NullString
+	if req.Password != "" {
+		bytes, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return nil, err
+		}
+		passwordHash.String = string(bytes)
+		passwordHash.Valid = true
+	}
+
 	_, err = db.DB.Exec(`
-		INSERT INTO timeslots (id, session_id, start_utc, end_utc)
-		VALUES (?, ?, ?, ?)
-	`, tsID, sessionID, req.StartUTC, req.EndUTC)
+		INSERT INTO timeslots (id, session_id, start_utc, end_utc, created_by, password_hash)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, tsID, sessionID, req.StartUTC, req.EndUTC, req.CreatedBy, passwordHash)
 	if err != nil {
 		return nil, err
 	}
@@ -97,13 +107,15 @@ func AddTimeslot(sessionID string, req models.TimeslotRequest) (*models.Timeslot
 		SessionID: sessionID,
 		StartUTC:  req.StartUTC,
 		EndUTC:    req.EndUTC,
+		CreatedBy: req.CreatedBy,
 	}, nil
 }
 
-func DeleteTimeslot(sessionID, timeslotID string) error {
+func DeleteTimeslot(sessionID, timeslotID, password string) error {
 	// Check if timeslot exists and belongs to session
 	var count int
-	err := db.DB.QueryRow("SELECT COUNT(*) FROM timeslots WHERE id = ? AND session_id = ?", timeslotID, sessionID).Scan(&count)
+	var storedHash sql.NullString
+	err := db.DB.QueryRow("SELECT COUNT(*), password_hash FROM timeslots WHERE id = ? AND session_id = ?", timeslotID, sessionID).Scan(&count, &storedHash)
 	if err != nil {
 		return err
 	}
@@ -119,6 +131,17 @@ func DeleteTimeslot(sessionID, timeslotID string) error {
 	}
 	if voteCount > 0 {
 		return fmt.Errorf("cannot delete timeslot with existing votes")
+	}
+
+	// Check password if set
+	if storedHash.Valid && storedHash.String != "" {
+		if password == "" {
+			return fmt.Errorf("password_required")
+		}
+		err = bcrypt.CompareHashAndPassword([]byte(storedHash.String), []byte(password))
+		if err != nil {
+			return fmt.Errorf("invalid_password")
+		}
 	}
 
 	_, err = db.DB.Exec("DELETE FROM timeslots WHERE id = ?", timeslotID)

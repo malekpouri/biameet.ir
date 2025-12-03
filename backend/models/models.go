@@ -27,6 +27,7 @@ type Timeslot struct {
 	StartUTC  string `json:"start_utc"`
 	EndUTC    string `json:"end_utc"`
 	Votes     []Vote `json:"votes,omitempty"` // Added Votes
+	CreatedBy string `json:"created_by,omitempty"`
 }
 
 type Vote struct {
@@ -46,8 +47,10 @@ type CreateSessionRequest struct {
 }
 
 type TimeslotRequest struct {
-	StartUTC string `json:"start_utc"`
-	EndUTC   string `json:"end_utc"`
+	StartUTC  string `json:"start_utc"`
+	EndUTC    string `json:"end_utc"`
+	CreatedBy string `json:"created_by,omitempty"`
+	Password  string `json:"password,omitempty"`
 }
 
 type CreateSessionResponse struct {
