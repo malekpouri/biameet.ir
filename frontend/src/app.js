@@ -88,11 +88,13 @@ function getSessionIDFromURL() {
     return null;
 }
 
-function formatJalali(utcDateString) {
+function formatJalali(utcDateString, useUTC = false) {
     if (!utcDateString) return '';
     const date = new Date(utcDateString);
-    const j = jalaali.toJalaali(date);
-    const time = date.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const j = useUTC ? jalaali.toJalaali(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate()) : jalaali.toJalaali(date);
+    const timeOpts = { hour: '2-digit', minute: '2-digit', hour12: false };
+    if (useUTC) timeOpts.timeZone = 'UTC';
+    const time = date.toLocaleTimeString('fa-IR', timeOpts);
     return `${j.jy}/${j.jm}/${j.jd} ${time}`;
 }
 
@@ -107,16 +109,17 @@ function getJalaliMonths() {
     return ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
 }
 
-function getDayName(date) {
+function getDayName(date, useUTC = false) {
     const days = ['یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه', 'شنبه'];
-    return days[date.getDay()];
+    const day = useUTC ? date.getUTCDay() : date.getDay();
+    return days[day];
 }
 
-function formatJalaliDate(utcDateString) {
+function formatJalaliDate(utcDateString, useUTC = false) {
     if (!utcDateString) return '';
     const date = new Date(utcDateString);
-    const j = jalaali.toJalaali(date);
-    const dayName = getDayName(date);
+    const j = useUTC ? jalaali.toJalaali(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate()) : jalaali.toJalaali(date);
+    const dayName = getDayName(date, useUTC);
     return `${dayName} ${j.jy}/${j.jm}/${j.jd}`;
 }
 
@@ -239,7 +242,7 @@ function renderSession() {
             <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded mb-6 border border-blue-100 dark:border-blue-800">
                 <h3 class="font-bold text-blue-800 dark:text-blue-300 mb-2">اطلاعات زمان‌بندی:</h3>
                 <p class="text-sm text-blue-700 dark:text-blue-400">
-                    تاریخ: ${formatJalaliDate(dynamic_config.date_utc)}<br>
+                    تاریخ: ${formatJalaliDate(dynamic_config.date_utc, true)}<br>
                     بازه مجاز: ${dynamic_config.min_time} تا ${dynamic_config.max_time}
                 </p>
             </div>
@@ -379,7 +382,7 @@ function renderSession() {
                         <div class="flex flex-col sm:flex-row justify-between items-center gap-2">
                             <div>
                                 <div class="text-sm text-gray-500 dark:text-gray-400 mb-1 text-right">
-                                    ${type === 'weekly' ? getDayName(new Date(ts.start_utc)) : formatJalaliDate(ts.start_utc)}
+                                    ${type === 'weekly' ? getDayName(new Date(ts.start_utc)) : formatJalaliDate(ts.start_utc, false)}
                                 </div>
                                 <div class="font-bold text-gray-800 dark:text-white">${formatTime(ts.start_utc)} - ${formatTime(ts.end_utc)}</div>
                                 ${ts.created_by ? `<div class="text-xs text-gray-400 mt-1">پیشنهاد دهنده: ${ts.created_by}</div>` : ''}
@@ -479,9 +482,9 @@ window.submitDynamicTimeslot = async function () {
     let dateStr;
     if (sessionData.type === 'dynamic') {
         const sessionDate = new Date(sessionData.dynamic_config.date_utc);
-        const yyyy = sessionDate.getFullYear();
-        const mm = String(sessionDate.getMonth() + 1).padStart(2, '0');
-        const dd = String(sessionDate.getDate()).padStart(2, '0');
+        const yyyy = sessionDate.getUTCFullYear();
+        const mm = String(sessionDate.getUTCMonth() + 1).padStart(2, '0');
+        const dd = String(sessionDate.getUTCDate()).padStart(2, '0');
         dateStr = `${yyyy}-${mm}-${dd}`;
     } else if (sessionData.type === 'weekly') {
         const dayIdx = parseInt(document.getElementById('weekly_date_select').value);
