@@ -1,95 +1,182 @@
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
-
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BiaMeet | بیا میت</title>
-  <meta name="description"
-    content="بیا میت یک ابزار ساده و رایگان برای هماهنگی جلسات است. بدون نیاز به ثبت‌نام، زمان‌های پیشنهادی خود را ایجاد کنید و با دیگران به اشتراک بگذارید.">
-  <meta name="keywords" content="جلسه, زمان‌بندی, تقویم, هماهنگی, رایگان, آنلاین, biameet, meeting, scheduler">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}}</title>
+  <meta name="description" content="{{.Description}}">
+  {{if .NoIndex}}<meta name="robots" content="noindex, nofollow">{{end}}
+  {{if .Path}}<link rel="canonical" href="{{.BaseURL}}{{.Path}}">{{end}}
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#2563eb" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111827" media="(prefers-color-scheme: dark)">
 
-  <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://biameet.ir/">
-  <meta property="og:title" content="BiaMeet | بیا میت">
-  <meta property="og:description" content="زمان‌بندی ساده جلسات. بدون نیاز به ثبت‌نام.">
-  <meta property="og:image" content="https://biameet.ir/banner.jpg">
+  <meta property="og:site_name" content="بیا میت">
+  <meta property="og:locale" content="fa_IR">
+  {{if .Path}}<meta property="og:url" content="{{.BaseURL}}{{.Path}}">{{end}}
+  <meta property="og:title" content="{{.Title}}">
+  <meta property="og:description" content="{{.Description}}">
+  <meta property="og:image" content="{{.BaseURL}}/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="بیا میت — زمان‌بندی ساده جلسات">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{.Title}}">
+  <meta name="twitter:description" content="{{.Description}}">
+  <meta name="twitter:image" content="{{.BaseURL}}/og.png">
 
-  <!-- Twitter -->
-  <meta property="twitter:card" content="summary_large_image">
-  <meta property="twitter:url" content="https://biameet.ir/">
-  <meta property="twitter:title" content="BiaMeet | بیا میت">
-  <meta property="twitter:description" content="زمان‌بندی ساده جلسات. بدون نیاز به ثبت‌نام.">
-  <meta property="twitter:image" content="https://biameet.ir/banner.jpg">
-
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <link href="./output.css" rel="stylesheet" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="{{asset "assets/vazirmatn.woff2"}}" as="font" type="font/woff2" crossorigin>
   <style>
-    @import url("https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;700&display=swap");
-
-    body {
-      font-family: "Vazirmatn", sans-serif;
+    @font-face {
+      font-family: "Vazirmatn";
+      src: url({{asset "assets/vazirmatn.woff2"}}) format("woff2");
+      font-weight: 100 900;
+      font-display: swap;
+      unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+200C-200F, U+FB50-FDFF, U+FE70-FEFF;
     }
   </style>
+  <link rel="stylesheet" href="{{asset "assets/app.css"}}">
+  <script src="{{asset "assets/app.js"}}" defer></script>
+  {{if .Home}}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebApplication",
+        "name": "بیا میت",
+        "alternateName": "BiaMeet",
+        "url": {{.BaseURL}},
+        "description": {{.Description}},
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web",
+        "inLanguage": "fa",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "IRR" }
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          { "@type": "Question", "name": "آیا برای استفاده از بیا میت باید ثبت‌نام کنم؟",
+            "acceptedAnswer": { "@type": "Answer", "text": "خیر. نه سازنده جلسه و نه شرکت‌کنندگان به ساخت حساب کاربری، ایمیل یا شماره تلفن نیاز ندارند. فقط یک نام وارد می‌کنید." } },
+          { "@type": "Question", "name": "آیا بیا میت رایگان است؟",
+            "acceptedAnswer": { "@type": "Answer", "text": "بله. بیا میت کاملاً رایگان و متن‌باز است و کد آن در گیت‌هاب در دسترس است." } },
+          { "@type": "Question", "name": "چطور رای خود را بعداً ویرایش کنم؟",
+            "acceptedAnswer": { "@type": "Answer", "text": "هنگام ثبت رای یک رمز عبور انتخاب کنید. بعداً با همان نام و رمز می‌توانید رای خود را تغییر دهید یا پس بگیرید. در همان مرورگر نیازی به وارد کردن دوباره رمز نیست." } },
+          { "@type": "Question", "name": "چه کسانی جلسه من را می‌بینند؟",
+            "acceptedAnswer": { "@type": "Answer", "text": "فقط کسانی که لینک جلسه را دارند. لینک هر جلسه تصادفی است و صفحه جلسات در موتورهای جستجو نمایش داده نمی‌شود." } },
+          { "@type": "Question", "name": "تفاوت انواع جلسه چیست؟",
+            "acceptedAnswer": { "@type": "Answer", "text": "در «زمان‌های مشخص» شما چند زمان پیشنهاد می‌دهید و دیگران رای می‌دهند. در «الگوی هفتگی» روزهای مجاز هفته و بازه ساعت را تعیین می‌کنید و شرکت‌کنندگان زمان پیشنهاد می‌دهند. در «بازه زمانی» یک روز و بازه ساعت مشخص می‌کنید و هر کس زمان دلخواهش را در آن بازه اضافه می‌کند." } }
+        ]
+      }
+    ]
+  }
+  </script>
+  {{end}}
 </head>
 
-<body
-  class="bg-gray-100 text-gray-900 min-h-screen flex flex-col dark:bg-gray-900 dark:text-gray-100 transition-colors duration-200">
-  <div class="container mx-auto p-4 flex-grow">
-    <header class="mb-8 text-center relative">
-      <a href="/" class="inline-block hover:opacity-80 transition-opacity">
-        <h1 class="text-4xl font-bold text-blue-600 dark:text-blue-400 tracking-tight">بیا میت</h1>
-        <p class="text-gray-600 dark:text-gray-400 mt-2">زمان‌بندی ساده جلسات</p>
-      </a>
-    </header>
-    <main id="app">
-      <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md text-center">
-        <div class="animate-pulse flex flex-col items-center">
-          <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-4"></div>
-          <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
-        </div>
-        <p class="mt-4 text-gray-500 dark:text-gray-400">در حال بارگذاری...</p>
-      </div>
-    </main>
-  </div>
-  <footer class="text-center py-6 text-gray-500 dark:text-gray-400 text-sm border-t dark:border-gray-700 mt-8">
-    <div class="max-w-2xl mx-auto px-4">
-      <p class="mb-4 leading-relaxed">
-        بیا میت یک ابزار ساده و متن‌باز برای هماهنگی جلسات است.
-        بدون نیاز به ثبت‌نام، زمان‌های پیشنهادی خود را ایجاد کنید و لینک آن را با دیگران به اشتراک بگذارید.
-      </p>
-      <div class="flex justify-center gap-4 items-center">
-        <span>&copy; 2025 تولید شده توسط سایت <a href="https://utux.ir"
-            class="hover:text-blue-600 dark:hover:text-blue-400">utux.ir</a></span>
-        <span class="text-gray-300 dark:text-gray-600">|</span>
-        <span class="text-gray-400 dark:text-gray-500 text-xs">v1.3.0</span>
-        <span class="text-gray-300 dark:text-gray-600">|</span>
-        <a href="https://github.com/malekpouri/biameet.ir" target="_blank"
-          class="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path fill-rule="evenodd"
-              d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
-              clip-rule="evenodd"></path>
-          </svg>
-          GitHub
-        </a>
+<body data-page="{{.Kind}}" class="flex min-h-screen flex-col bg-gray-50 text-gray-900 antialiased dark:bg-gray-900 dark:text-gray-100">
+  <header class="px-4 pb-6 pt-8 text-center">
+    <a href="/" class="inline-block rounded-lg">
+      {{if .Home}}<h1 class="text-4xl font-bold tracking-tight text-blue-600 dark:text-blue-400">بیا میت</h1>
+      {{else}}<span class="block text-4xl font-bold tracking-tight text-blue-600 dark:text-blue-400">بیا میت</span>{{end}}
+      <span class="mt-2 block text-gray-600 dark:text-gray-400">زمان‌بندی ساده جلسات، بدون ثبت‌نام</span>
+    </a>
+  </header>
+
+  <main class="w-full flex-grow px-4">
+    <div id="app" class="mx-auto max-w-2xl">
+      <div class="card p-6 text-center">
+        <div class="mx-auto mb-3 h-4 w-1/2 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
+        <div class="mx-auto h-4 w-3/4 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
+        <noscript><p class="mt-4 text-red-600 dark:text-red-400">برای استفاده از بیا میت، جاوااسکریپت مرورگر را فعال کنید.</p></noscript>
       </div>
     </div>
+
+    {{if .Home}}
+    <div class="mx-auto mt-16 max-w-2xl space-y-14 text-gray-700 dark:text-gray-300">
+      <section aria-labelledby="how-title">
+        <h2 id="how-title" class="mb-6 text-center text-2xl font-bold text-gray-900 dark:text-white">بیا میت چطور کار می‌کند؟</h2>
+        <ol class="grid gap-4 sm:grid-cols-3">
+          <li class="card p-5">
+            <span class="mb-3 flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 font-bold text-white">۱</span>
+            <h3 class="mb-1 font-bold text-gray-900 dark:text-white">جلسه بسازید</h3>
+            <p class="text-sm leading-relaxed">عنوان جلسه و نام خود را بنویسید و چند زمان پیشنهادی، الگوی هفتگی یا یک بازه زمانی تعیین کنید.</p>
+          </li>
+          <li class="card p-5">
+            <span class="mb-3 flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 font-bold text-white">۲</span>
+            <h3 class="mb-1 font-bold text-gray-900 dark:text-white">لینک را بفرستید</h3>
+            <p class="text-sm leading-relaxed">لینک اختصاصی جلسه را در تلگرام، واتساپ، ایمیل یا هر پیام‌رسان دیگری برای شرکت‌کنندگان بفرستید.</p>
+          </li>
+          <li class="card p-5">
+            <span class="mb-3 flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 font-bold text-white">۳</span>
+            <h3 class="mb-1 font-bold text-gray-900 dark:text-white">بهترین زمان را ببینید</h3>
+            <p class="text-sm leading-relaxed">هر کس زمان‌های مناسب خود را انتخاب می‌کند و شما می‌بینید کدام زمان بیشترین رای را دارد.</p>
+          </li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="features-title">
+        <h2 id="features-title" class="mb-6 text-center text-2xl font-bold text-gray-900 dark:text-white">چرا بیا میت؟</h2>
+        <ul class="grid gap-3 text-sm sm:grid-cols-2">
+          <li class="card p-4"><strong class="text-gray-900 dark:text-white">بدون ثبت‌نام:</strong> نه ایمیل لازم است و نه شماره تلفن؛ فقط یک نام.</li>
+          <li class="card p-4"><strong class="text-gray-900 dark:text-white">تقویم شمسی:</strong> تاریخ‌ها به شمسی و ساعت‌ها به وقت محلی هر شرکت‌کننده نمایش داده می‌شوند.</li>
+          <li class="card p-4"><strong class="text-gray-900 dark:text-white">سه نوع جلسه:</strong> زمان‌های مشخص، الگوی هفتگی یا بازه زمانی آزاد.</li>
+          <li class="card p-4"><strong class="text-gray-900 dark:text-white">رای امن:</strong> با رمز عبور اختیاری، فقط خودتان می‌توانید رایتان را ویرایش کنید.</li>
+          <li class="card p-4"><strong class="text-gray-900 dark:text-white">سریع و سبک:</strong> روی موبایل و اینترنت کند هم به‌سرعت باز می‌شود.</li>
+          <li class="card p-4"><strong class="text-gray-900 dark:text-white">رایگان و متن‌باز:</strong> کد کامل بیا میت در گیت‌هاب منتشر شده است.</li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="faq-title">
+        <h2 id="faq-title" class="mb-6 text-center text-2xl font-bold text-gray-900 dark:text-white">پرسش‌های متداول</h2>
+        <div class="space-y-3">
+          <details class="card p-4">
+            <summary class="font-medium text-gray-900 dark:text-white">آیا برای استفاده از بیا میت باید ثبت‌نام کنم؟</summary>
+            <p class="mt-2 text-sm leading-relaxed">خیر. نه سازنده جلسه و نه شرکت‌کنندگان به ساخت حساب کاربری، ایمیل یا شماره تلفن نیاز ندارند. فقط یک نام وارد می‌کنید.</p>
+          </details>
+          <details class="card p-4">
+            <summary class="font-medium text-gray-900 dark:text-white">آیا بیا میت رایگان است؟</summary>
+            <p class="mt-2 text-sm leading-relaxed">بله. بیا میت کاملاً رایگان و متن‌باز است و کد آن در گیت‌هاب در دسترس است.</p>
+          </details>
+          <details class="card p-4">
+            <summary class="font-medium text-gray-900 dark:text-white">چطور رای خود را بعداً ویرایش کنم؟</summary>
+            <p class="mt-2 text-sm leading-relaxed">هنگام ثبت رای یک رمز عبور انتخاب کنید. بعداً با همان نام و رمز می‌توانید رای خود را تغییر دهید یا پس بگیرید. در همان مرورگر نیازی به وارد کردن دوباره رمز نیست.</p>
+          </details>
+          <details class="card p-4">
+            <summary class="font-medium text-gray-900 dark:text-white">چه کسانی جلسه من را می‌بینند؟</summary>
+            <p class="mt-2 text-sm leading-relaxed">فقط کسانی که لینک جلسه را دارند. لینک هر جلسه تصادفی است و صفحه جلسات در موتورهای جستجو نمایش داده نمی‌شود.</p>
+          </details>
+          <details class="card p-4">
+            <summary class="font-medium text-gray-900 dark:text-white">تفاوت انواع جلسه چیست؟</summary>
+            <p class="mt-2 text-sm leading-relaxed">در «زمان‌های مشخص» شما چند زمان پیشنهاد می‌دهید و دیگران رای می‌دهند. در «الگوی هفتگی» روزهای مجاز هفته و بازه ساعت را تعیین می‌کنید و شرکت‌کنندگان زمان پیشنهاد می‌دهند. در «بازه زمانی» یک روز و بازه ساعت مشخص می‌کنید و هر کس زمان دلخواهش را در آن بازه اضافه می‌کند.</p>
+          </details>
+        </div>
+      </section>
+    </div>
+    {{end}}
+  </main>
+
+  <footer class="mt-16 border-t border-gray-200 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+    <p class="mx-auto mb-4 max-w-2xl leading-relaxed">
+      بیا میت یک ابزار ساده و متن‌باز برای هماهنگی جلسات است.
+      بدون نیاز به ثبت‌نام، زمان‌های پیشنهادی خود را ایجاد کنید و لینک آن را با دیگران به اشتراک بگذارید.
+    </p>
+    <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+      <span>&copy; {{.Year}} تولید شده توسط <a href="https://utux.ir" class="hover:text-blue-600 dark:hover:text-blue-400">utux.ir</a></span>
+      <span aria-hidden="true" class="text-gray-300 dark:text-gray-600">|</span>
+      <span class="text-xs" dir="ltr">v{{.Version}}</span>
+      <span aria-hidden="true" class="text-gray-300 dark:text-gray-600">|</span>
+      <a href="https://github.com/malekpouri/biameet.ir" rel="noopener" class="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400">
+        <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill-rule="evenodd" clip-rule="evenodd"
+            d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
+        </svg>
+        GitHub
+      </a>
+    </div>
   </footer>
-
-  <!-- Scripts -->
-  <script src="https://cdn.jsdelivr.net/npm/jalaali-js@1.2.8/dist/jalaali.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/utc.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/timezone.js"></script>
-  <script>
-    dayjs.extend(window.dayjs_plugin_utc);
-    dayjs.extend(window.dayjs_plugin_timezone);
-    // dayjs-jalali plugin might need different loading or just use jalaali-js directly for simplicity
-    // actually let's stick to jalaali-js for conversion and native Date/dayjs for time
-  </script>
-  <script src="./app.js"></script>
 </body>
-
 </html>

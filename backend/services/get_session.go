@@ -3,7 +3,6 @@ package services
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
 
 	"biameet.ir/db"
 	"biameet.ir/models"
@@ -11,11 +10,8 @@ import (
 
 func GetSession(id string) (*models.Session, error) {
 	var session models.Session
+	var expiresAt, archivedAt, dynamicConfigJSON, sessionType sql.NullString
 
-	var expiresAt, archivedAt, dynamicConfigJSON sql.NullString
-	var sessionType sql.NullString
-
-	// 1. Get Session
 	err := db.DB.QueryRow(`
 		SELECT id, title, creator_name, created_at_utc, expires_at_utc, archived_at_utc, type, dynamic_config
 		FROM sessions WHERE id = ?
@@ -23,79 +19,63 @@ func GetSession(id string) (*models.Session, error) {
 		&session.ID, &session.Title, &session.CreatorName, &session.CreatedAtUTC,
 		&expiresAt, &archivedAt, &sessionType, &dynamicConfigJSON,
 	)
+	if err == sql.ErrNoRows {
+		return nil, ErrSessionNotFound
+	}
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("session not found")
-		}
 		return nil, err
 	}
 
-	if expiresAt.Valid {
-		session.ExpiresAtUTC = expiresAt.String
+	session.ExpiresAtUTC = expiresAt.String
+	session.ArchivedAtUTC = archivedAt.String
+	session.Expired = isExpired(expiresAt.String)
+	session.Type = sessionType.String
+	if session.Type == "" {
+		session.Type = "fixed"
 	}
-	if archivedAt.Valid {
-		session.ArchivedAtUTC = archivedAt.String
-	}
-	if sessionType.Valid {
-		session.Type = sessionType.String
-	}
-	if dynamicConfigJSON.Valid && dynamicConfigJSON.String != "" {
+	if dynamicConfigJSON.String != "" {
 		var config models.DynamicConfig
 		if err := json.Unmarshal([]byte(dynamicConfigJSON.String), &config); err == nil {
 			session.DynamicConfig = &config
 		}
 	}
 
-	// 2. Get Timeslots
 	rows, err := db.DB.Query(`
 		SELECT id, session_id, start_utc, end_utc, created_by
 		FROM timeslots WHERE session_id = ?
+		ORDER BY start_utc, end_utc
 	`, id)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	timeslotMap := make(map[string]*models.Timeslot)
-	var timeslots []models.Timeslot
-
+	session.Timeslots = []models.Timeslot{}
 	for rows.Next() {
 		var ts models.Timeslot
 		var createdBy sql.NullString
 		if err := rows.Scan(&ts.ID, &ts.SessionID, &ts.StartUTC, &ts.EndUTC, &createdBy); err != nil {
 			return nil, err
 		}
-		if createdBy.Valid {
-			ts.CreatedBy = createdBy.String
-		}
-		ts.Votes = []models.Vote{} // Initialize empty slice
-		timeslots = append(timeslots, ts)
-		// We need to map pointers to modify the slice elements later?
-		// Actually, appending to slice copies the struct.
-		// Let's use index or pointers.
+		ts.CreatedBy = createdBy.String
+		ts.Votes = []models.Vote{}
+		session.Timeslots = append(session.Timeslots, ts)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
-	// Re-loop to create map for easy vote assignment
-	// Or just query votes for all timeslots in one go if possible, or loop.
-	// For simplicity, let's just loop and query votes (N+1 problem, but okay for small scale)
-	// OR better: SELECT * FROM votes WHERE timeslot_id IN (...)
-
-	// Let's do a slightly better approach: fetch all votes for these timeslots
-	// But first, let's fix the slice/map issue.
-	for i := range timeslots {
-		timeslotMap[timeslots[i].ID] = &timeslots[i]
+	index := make(map[string]int, len(session.Timeslots))
+	for i := range session.Timeslots {
+		index[session.Timeslots[i].ID] = i
 	}
 
-	// 3. Get Votes
-	// We can get all votes for the session via join or just get all votes for these timeslots
-	// Since we don't have session_id in votes, we need to join or use IN clause.
-	// Simple approach: Iterate timeslots (if few) or use IN.
-	// Let's use a JOIN with timeslots to filter by session_id
 	voteRows, err := db.DB.Query(`
 		SELECT v.id, v.timeslot_id, v.voter_name, v.note, v.created_at_utc
 		FROM votes v
 		JOIN timeslots t ON v.timeslot_id = t.id
 		WHERE t.session_id = ?
+		ORDER BY v.created_at_utc
 	`, id)
 	if err != nil {
 		return nil, err
@@ -108,14 +88,20 @@ func GetSession(id string) (*models.Session, error) {
 		if err := voteRows.Scan(&v.ID, &v.TimeslotID, &v.VoterName, &note, &v.CreatedAtUTC); err != nil {
 			return nil, err
 		}
-		if note.Valid {
-			v.Note = note.String
-		}
-		if ts, ok := timeslotMap[v.TimeslotID]; ok {
-			ts.Votes = append(ts.Votes, v)
+		v.Note = note.String
+		if i, ok := index[v.TimeslotID]; ok {
+			session.Timeslots[i].Votes = append(session.Timeslots[i].Votes, v)
 		}
 	}
+	return &session, voteRows.Err()
+}
 
-	session.Timeslots = timeslots
-	return &session, nil
+// GetSessionSummary returns just what the HTML page needs for link previews,
+// without loading timeslots and votes.
+func GetSessionSummary(id string) (title, creator string, err error) {
+	err = db.DB.QueryRow(`SELECT title, creator_name FROM sessions WHERE id = ?`, id).Scan(&title, &creator)
+	if err == sql.ErrNoRows {
+		err = ErrSessionNotFound
+	}
+	return
 }

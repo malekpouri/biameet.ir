@@ -1,9 +1,14 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  darkMode: 'class',
-  content: ["./src/**/*.{html,js}"],
+  // Follow the OS setting; every dark: class in the app now actually applies.
+  darkMode: 'media',
+  content: ['./src/**/*.{html,js}'],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        sans: ['Vazirmatn', 'system-ui', '-apple-system', '"Segoe UI"', 'Roboto', 'Tahoma', 'sans-serif'],
+      },
+    },
   },
   plugins: [],
-}
+};

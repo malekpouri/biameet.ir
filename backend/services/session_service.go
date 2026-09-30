@@ -3,18 +3,116 @@ package services
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"time"
 
 	"biameet.ir/db"
 	"biameet.ir/models"
 	"biameet.ir/utils"
 	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
 )
 
+// querier is satisfied by both *sql.DB and *sql.Tx.
+type querier interface {
+	QueryRow(query string, args ...any) *sql.Row
+}
+
+type sessionMeta struct {
+	Type    string
+	Config  *models.DynamicConfig
+	Expired bool
+}
+
+func loadSessionMeta(q querier, id string) (*sessionMeta, error) {
+	var typ, cfgJSON, expires sql.NullString
+	err := q.QueryRow(`SELECT type, dynamic_config, expires_at_utc FROM sessions WHERE id = ?`, id).
+		Scan(&typ, &cfgJSON, &expires)
+	if err == sql.ErrNoRows {
+		return nil, ErrSessionNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	m := &sessionMeta{Type: typ.String, Expired: isExpired(expires.String)}
+	if m.Type == "" {
+		m.Type = "fixed"
+	}
+	if cfgJSON.String != "" {
+		var cfg models.DynamicConfig
+		if json.Unmarshal([]byte(cfgJSON.String), &cfg) == nil {
+			m.Config = &cfg
+		}
+	}
+	return m, nil
+}
+
+func isExpired(expiresAt string) bool {
+	if expiresAt == "" {
+		return false
+	}
+	t, err := time.Parse(time.RFC3339Nano, expiresAt)
+	return err == nil && time.Now().After(t)
+}
+
+func participantHash(q querier, sessionID, name string) (hash sql.NullString, found bool, err error) {
+	err = q.QueryRow(`SELECT password_hash FROM participants WHERE session_id = ? AND name = ?`, sessionID, name).Scan(&hash)
+	if err == sql.ErrNoRows {
+		return hash, false, nil
+	}
+	return hash, err == nil, err
+}
+
+// authorizeParticipant authenticates name for a write in sessionID. It runs
+// outside any transaction because bcrypt is slow and must not hold the write
+// lock. It returns the hash to store/keep and whether the participant is new.
+func authorizeParticipant(sessionID, name, password, token string) (hash sql.NullString, isNew bool, err error) {
+	stored, found, err := participantHash(db.DB, sessionID, name)
+	if err != nil {
+		return hash, false, err
+	}
+	if !found {
+		hash, err = hashPassword(password)
+		return hash, true, err
+	}
+	if !stored.Valid || stored.String == "" {
+		// Registered without a password: nobody can prove they own this name.
+		return hash, false, ErrNameTakenNoPassword
+	}
+	if err := checkCredential(sessionID, name, stored, password, token); err != nil {
+		return hash, false, err
+	}
+	return stored, false, nil
+}
+
+// recheckParticipant makes sure the participant row didn't change between
+// authorizeParticipant and the write transaction.
+func recheckParticipant(tx *sql.Tx, sessionID, name string, hash sql.NullString, isNew bool) error {
+	stored, found, err := participantHash(tx, sessionID, name)
+	if err != nil {
+		return err
+	}
+	if found == isNew || (found && stored.String != hash.String) {
+		return ErrConcurrentUpdate
+	}
+	return nil
+}
+
 func CreateSession(req models.CreateSessionRequest) (*models.CreateSessionResponse, error) {
-	sessionID := utils.GenerateShortID(5)
+	if err := validateCreate(&req); err != nil {
+		return nil, err
+	}
+
+	var cfgJSON, expires sql.NullString
+	if req.DynamicConfig != nil {
+		b, err := json.Marshal(req.DynamicConfig)
+		if err != nil {
+			return nil, err
+		}
+		cfgJSON = sql.NullString{String: string(b), Valid: true}
+	}
+	if req.ExpiresAtUTC != "" {
+		expires = sql.NullString{String: req.ExpiresAtUTC, Valid: true}
+	}
 	createdAt := time.Now().UTC().Format(time.RFC3339)
 
 	tx, err := db.DB.Begin()
@@ -23,38 +121,40 @@ func CreateSession(req models.CreateSessionRequest) (*models.CreateSessionRespon
 	}
 	defer tx.Rollback()
 
-	// Serialize DynamicConfig
-	var dynamicConfigJSON string
-	if req.DynamicConfig != nil {
-		bytes, err := json.Marshal(req.DynamicConfig)
-		if err != nil {
+	// 62^5 IDs make collisions rare but not impossible; the write lock held by
+	// this transaction makes check-then-insert safe.
+	var sessionID string
+	for attempt := 0; ; attempt++ {
+		sessionID = utils.GenerateShortID(5)
+		var taken bool
+		if err := tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?)`, sessionID).Scan(&taken); err != nil {
 			return nil, err
 		}
-		dynamicConfigJSON = string(bytes)
+		if !taken {
+			break
+		}
+		if attempt == 10 {
+			return nil, errors.New("could not allocate a session id")
+		}
 	}
 
-	// Default type if empty
-	sessionType := req.Type
-	if sessionType == "" {
-		sessionType = "fixed"
-	}
-
-	// Insert Session
 	_, err = tx.Exec(`
-		INSERT INTO sessions (id, title, creator_name, created_at_utc, type, dynamic_config)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, sessionID, req.Title, req.CreatorName, createdAt, sessionType, dynamicConfigJSON)
+		INSERT INTO sessions (id, title, creator_name, created_at_utc, expires_at_utc, type, dynamic_config)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, sessionID, req.Title, req.CreatorName, createdAt, expires, req.Type, cfgJSON)
 	if err != nil {
 		return nil, err
 	}
 
-	// Insert Timeslots
+	seen := make(map[string]bool, len(req.Timeslots))
 	for _, ts := range req.Timeslots {
-		tsID := uuid.New().String()
-		_, err = tx.Exec(`
-			INSERT INTO timeslots (id, session_id, start_utc, end_utc)
-			VALUES (?, ?, ?, ?)
-		`, tsID, sessionID, ts.StartUTC, ts.EndUTC)
+		key := ts.StartUTC + "|" + ts.EndUTC
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		_, err = tx.Exec(`INSERT INTO timeslots (id, session_id, start_utc, end_utc) VALUES (?, ?, ?, ?)`,
+			uuid.NewString(), sessionID, ts.StartUTC, ts.EndUTC)
 		if err != nil {
 			return nil, err
 		}
@@ -66,35 +166,55 @@ func CreateSession(req models.CreateSessionRequest) (*models.CreateSessionRespon
 
 	return &models.CreateSessionResponse{
 		ID:   sessionID,
-		Link: "/sessions/" + sessionID, // Frontend route
+		Link: "/" + sessionID,
 	}, nil
 }
 
-func AddTimeslot(sessionID string, req models.TimeslotRequest) (*models.Timeslot, error) {
-	// Check for duplicates
-	var count int
-	err := db.DB.QueryRow(`
-		SELECT COUNT(*) FROM timeslots 
-		WHERE session_id = ? AND start_utc = ? AND end_utc = ?
-	`, sessionID, req.StartUTC, req.EndUTC).Scan(&count)
+func AddTimeslot(sessionID string, req models.TimeslotRequest) (*models.AddTimeslotResponse, error) {
+	var err error
+	if req.CreatedBy, err = checkText(req.CreatedBy, "نام", maxNameLen, false); err != nil {
+		return nil, err
+	}
+	if err := checkPassword(req.Password); err != nil {
+		return nil, err
+	}
+	start, end, err := normalizeSlot(req.StartUTC, req.EndUTC)
 	if err != nil {
 		return nil, err
 	}
-	if count > 0 {
-		return nil, fmt.Errorf("این زمان قبلاً ثبت شده است")
+
+	meta, err := loadSessionMeta(db.DB, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if meta.Expired {
+		return nil, ErrSessionExpired
+	}
+	switch meta.Type {
+	case "dynamic":
+		if meta.Config == nil || !inDynamicRange(meta.Config, start, end) {
+			return nil, ErrOutOfRange
+		}
+	case "weekly":
+	default:
+		return nil, ErrFixedSession
 	}
 
-	tsID := uuid.New().String()
-
-	var passwordHash sql.NullString
-	if req.Password != "" {
-		bytes, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-		if err != nil {
+	// The proposer's hash is stored on the timeslot as well, so deleting it
+	// later requires the same credentials.
+	var hash sql.NullString
+	isNew := false
+	if req.CreatedBy != "" {
+		if hash, isNew, err = authorizeParticipant(sessionID, req.CreatedBy, req.Password, req.Token); err != nil {
 			return nil, err
 		}
-		passwordHash.String = string(bytes)
-		passwordHash.Valid = true
+	} else if hash, err = hashPassword(req.Password); err != nil {
+		return nil, err
 	}
+
+	startS, endS := start.Format(isoLayout), end.Format(isoLayout)
+	tsID := uuid.NewString()
+	createdAt := time.Now().UTC().Format(time.RFC3339)
 
 	tx, err := db.DB.Begin()
 	if err != nil {
@@ -102,65 +222,47 @@ func AddTimeslot(sessionID string, req models.TimeslotRequest) (*models.Timeslot
 	}
 	defer tx.Rollback()
 
+	if req.CreatedBy != "" {
+		if err := recheckParticipant(tx, sessionID, req.CreatedBy, hash, isNew); err != nil {
+			return nil, err
+		}
+	}
+
+	var total, dup int
+	err = tx.QueryRow(`
+		SELECT COUNT(*), COALESCE(SUM(start_utc = ? AND end_utc = ?), 0)
+		FROM timeslots WHERE session_id = ?
+	`, startS, endS, sessionID).Scan(&total, &dup)
+	if err != nil {
+		return nil, err
+	}
+	if dup > 0 {
+		return nil, ErrDuplicateTimeslot
+	}
+	if total >= maxSessionSlots {
+		return nil, ErrTooManyTimeslots
+	}
+
+	createdBy := sql.NullString{String: req.CreatedBy, Valid: req.CreatedBy != ""}
 	_, err = tx.Exec(`
 		INSERT INTO timeslots (id, session_id, start_utc, end_utc, created_by, password_hash)
 		VALUES (?, ?, ?, ?, ?, ?)
-	`, tsID, sessionID, req.StartUTC, req.EndUTC, req.CreatedBy, passwordHash)
+	`, tsID, sessionID, startS, endS, createdBy, hash)
 	if err != nil {
 		return nil, err
 	}
 
-	// Automatically vote for the creator if name is provided
+	// The proposer automatically votes for their own slot.
 	if req.CreatedBy != "" {
-		voteID := uuid.New().String()
-		createdAt := time.Now().UTC().Format(time.RFC3339)
-
-		// We also need to register the participant if not exists, similar to SubmitVote logic.
-		// However, reusing SubmitVote logic here is tricky because of circular dependencies or transaction handling.
-		// Let's duplicate the minimal logic needed: Insert participant if new, then insert vote.
-
-		// 1. Handle Participant
-		var pStoredHash sql.NullString
-		err = tx.QueryRow("SELECT password_hash FROM participants WHERE session_id = ? AND name = ?", sessionID, req.CreatedBy).Scan(&pStoredHash)
-		if err == sql.ErrNoRows {
-			// New participant
-			_, err = tx.Exec("INSERT INTO participants (session_id, name, password_hash, created_at_utc) VALUES (?, ?, ?, ?)",
-				sessionID, req.CreatedBy, passwordHash, createdAt) // Use same password hash for participant
+		if isNew {
+			_, err = tx.Exec(`INSERT INTO participants (session_id, name, password_hash, created_at_utc) VALUES (?, ?, ?, ?)`,
+				sessionID, req.CreatedBy, hash, createdAt)
 			if err != nil {
 				return nil, err
 			}
-		} else if err != nil {
-			return nil, err
-		} else {
-			// Existing participant. We don't validate password here because they just created the timeslot.
-			// But ideally we should? For now let's assume if they can create a timeslot, they can vote on it.
-			// Actually, anyone can create a timeslot with any name.
-			// If I use someone else's name to create a timeslot, I will also cast a vote for them?
-			// This might be a security hole if I can impersonate.
-			// But we added password check for editing votes.
-			// If I create a timeslot as "Ali" (who has a password), and I don't provide password (or provide my own),
-			// I shouldn't be able to register "Ali" as a participant if "Ali" already exists with a different password.
-
-			if pStoredHash.Valid && pStoredHash.String != "" {
-				// Existing user has password.
-				if req.Password == "" {
-					// If creator didn't provide password, they can't vote as this user.
-					// But they just created the timeslot!
-					// Let's just skip auto-voting if authentication fails, or error out?
-					// Erroring out seems safer to prevent confusion.
-					return nil, fmt.Errorf("password_required")
-				}
-				if err := bcrypt.CompareHashAndPassword([]byte(pStoredHash.String), []byte(req.Password)); err != nil {
-					return nil, fmt.Errorf("invalid_password")
-				}
-			}
 		}
-
-		// 2. Insert Vote
-		_, err = tx.Exec(`
-			INSERT INTO votes (id, timeslot_id, voter_name, created_at_utc)
-			VALUES (?, ?, ?, ?)
-		`, voteID, tsID, req.CreatedBy, createdAt)
+		_, err = tx.Exec(`INSERT INTO votes (id, timeslot_id, voter_name, created_at_utc) VALUES (?, ?, ?, ?)`,
+			uuid.NewString(), tsID, req.CreatedBy, createdAt)
 		if err != nil {
 			return nil, err
 		}
@@ -170,48 +272,90 @@ func AddTimeslot(sessionID string, req models.TimeslotRequest) (*models.Timeslot
 		return nil, err
 	}
 
-	return &models.Timeslot{
-		ID:        tsID,
-		SessionID: sessionID,
-		StartUTC:  req.StartUTC,
-		EndUTC:    req.EndUTC,
-		CreatedBy: req.CreatedBy,
-	}, nil
+	resp := &models.AddTimeslotResponse{
+		Timeslot: models.Timeslot{
+			ID:        tsID,
+			SessionID: sessionID,
+			StartUTC:  startS,
+			EndUTC:    endS,
+			CreatedBy: req.CreatedBy,
+			Votes:     []models.Vote{},
+		},
+	}
+	if req.CreatedBy != "" {
+		resp.Token = participantToken(sessionID, req.CreatedBy, hash.String)
+	}
+	return resp, nil
 }
 
-func DeleteTimeslot(sessionID, timeslotID, password string) error {
-	// Check if timeslot exists and belongs to session
-	var count int
-	var storedHash sql.NullString
-	err := db.DB.QueryRow("SELECT COUNT(*), password_hash FROM timeslots WHERE id = ? AND session_id = ?", timeslotID, sessionID).Scan(&count, &storedHash)
+func DeleteTimeslot(sessionID, timeslotID string, req models.DeleteTimeslotRequest) error {
+	meta, err := loadSessionMeta(db.DB, sessionID)
 	if err != nil {
 		return err
 	}
-	if count == 0 {
-		return fmt.Errorf("timeslot not found")
+	if meta.Expired {
+		return ErrSessionExpired
 	}
 
-	// Check if timeslot has votes
-	var voteCount int
-	err = db.DB.QueryRow("SELECT COUNT(*) FROM votes WHERE timeslot_id = ?", timeslotID).Scan(&voteCount)
+	var createdBy, hash sql.NullString
+	err = db.DB.QueryRow(`SELECT created_by, password_hash FROM timeslots WHERE id = ? AND session_id = ?`,
+		timeslotID, sessionID).Scan(&createdBy, &hash)
+	if err == sql.ErrNoRows {
+		return ErrTimeslotNotFound
+	}
 	if err != nil {
 		return err
 	}
-	if voteCount > 0 {
-		return fmt.Errorf("cannot delete timeslot with existing votes")
+
+	protected := hash.Valid && hash.String != ""
+	if protected {
+		authorized := false
+		// A token proves identity as the proposer (tokens are bound to the participant's hash).
+		if req.Token != "" && createdBy.String != "" {
+			pHash, found, err := participantHash(db.DB, sessionID, createdBy.String)
+			if err != nil {
+				return err
+			}
+			authorized = found && pHash.String != "" &&
+				checkCredential(sessionID, createdBy.String, pHash, "", req.Token) == nil
+		}
+		if !authorized {
+			if err := checkCredential(sessionID, createdBy.String, hash, req.Password, ""); err != nil {
+				return err
+			}
+		}
 	}
 
-	// Check password if set
-	if storedHash.Valid && storedHash.String != "" {
-		if password == "" {
-			return fmt.Errorf("password_required")
-		}
-		err = bcrypt.CompareHashAndPassword([]byte(storedHash.String), []byte(password))
-		if err != nil {
-			return fmt.Errorf("invalid_password")
-		}
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Other people's votes always block deletion. The proposer's own automatic
+	// vote doesn't when they've proven who they are.
+	var blocking int
+	if protected && createdBy.String != "" {
+		err = tx.QueryRow(`SELECT COUNT(*) FROM votes WHERE timeslot_id = ? AND voter_name <> ?`, timeslotID, createdBy.String).Scan(&blocking)
+	} else {
+		err = tx.QueryRow(`SELECT COUNT(*) FROM votes WHERE timeslot_id = ?`, timeslotID).Scan(&blocking)
+	}
+	if err != nil {
+		return err
+	}
+	if blocking > 0 {
+		return ErrTimeslotHasVotes
 	}
 
-	_, err = db.DB.Exec("DELETE FROM timeslots WHERE id = ?", timeslotID)
-	return err
+	if _, err = tx.Exec(`DELETE FROM votes WHERE timeslot_id = ?`, timeslotID); err != nil {
+		return err
+	}
+	res, err := tx.Exec(`DELETE FROM timeslots WHERE id = ? AND session_id = ?`, timeslotID, sessionID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrTimeslotNotFound
+	}
+	return tx.Commit()
 }

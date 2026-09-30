@@ -3,96 +3,136 @@ package tests
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http/httptest"
-	"os"
+	"sync"
 	"testing"
 
-	"biameet.ir/api"
-	"biameet.ir/db"
 	"biameet.ir/models"
-	"biameet.ir/services"
-	"github.com/gofiber/fiber/v2"
-	_ "modernc.org/sqlite"
 )
 
-func setupVoteApp() *fiber.App {
-	app := fiber.New()
-	testDB := "test_vote.db"
-	os.Remove(testDB)
-
-	if err := db.InitDB(testDB); err != nil {
-		panic(err)
+func vote(name, password, token string, slots ...string) models.VoteRequest {
+	req := models.VoteRequest{VoterName: name, Password: password, Token: token, Votes: []models.VoteItem{}}
+	for _, s := range slots {
+		req.Votes = append(req.Votes, models.VoteItem{TimeslotID: s})
 	}
-
-	apiGroup := app.Group("/api/v1")
-	apiGroup.Post("/sessions/:id/vote", api.VoteHandler)
-
-	return app
+	return req
 }
 
-func TestVote(t *testing.T) {
-	app := setupVoteApp()
-	defer os.Remove("test_vote.db")
+func TestVoteWithoutPasswordCannotBeEditedByAnyone(t *testing.T) {
+	e := newEnv(t)
+	id, slots := createFixed(t, e)
+	path := "/api/v1/sessions/" + id + "/vote"
 
-	// Seed data
-	req := models.CreateSessionRequest{
-		Title:       "Vote Test",
-		CreatorName: "Tester",
-		Timeslots: []models.TimeslotRequest{
-			{StartUTC: "2023-01-01T12:00:00Z", EndUTC: "2023-01-01T13:00:00Z"},
-		},
-	}
-	created, err := services.CreateSession(req)
-	if err != nil {
-		t.Fatalf("Failed to seed session: %v", err)
+	r := e.do(t, "POST", path, vote("Ali", "", "", slots[0]))
+	expectStatus(t, r, 200)
+	if r.JSON(t)["token"] != nil {
+		t.Fatal("no token should be issued without a password")
 	}
 
-	// We need to get the timeslot ID.
-	// Since CreateSession doesn't return timeslot IDs in response (only session ID),
-	// we need to fetch the session to get timeslots.
-	session, err := services.GetSession(created.ID)
-	if err != nil {
-		t.Fatalf("Failed to get session: %v", err)
+	expectError(t, e.do(t, "POST", path, vote("Ali", "", "", slots[1])), 409, "name_taken_no_password")
+	expectError(t, e.do(t, "POST", path, vote("Ali", "guess", "", slots[1])), 409, "name_taken_no_password")
+}
+
+func TestVotePasswordAndTokenFlow(t *testing.T) {
+	e := newEnv(t)
+	id, slots := createFixed(t, e)
+	path := "/api/v1/sessions/" + id + "/vote"
+
+	r := e.do(t, "POST", path, vote("Ali", "secret", "", slots[0]))
+	expectStatus(t, r, 200)
+	aliToken, _ := r.JSON(t)["token"].(string)
+	if aliToken == "" {
+		t.Fatal("expected a token")
 	}
-	if len(session.Timeslots) == 0 {
-		t.Fatalf("No timeslots found")
-	}
-	tsID := session.Timeslots[0].ID
+	expectStatus(t, e.do(t, "POST", path, vote("Sara", "other", "", slots[0])), 200)
 
-	// Test Vote
-	voteReq := models.VoteRequest{
-		VoterName: "Voter 1",
-		Votes: []models.VoteItem{
-			{TimeslotID: tsID, Note: "Yes"},
-		},
-	}
+	expectError(t, e.do(t, "POST", path, vote("Ali", "", "", slots[1])), 401, "password_required")
+	expectError(t, e.do(t, "POST", path, vote("Ali", "wrong", "", slots[1])), 401, "invalid_password")
+	expectError(t, e.do(t, "POST", path, vote("Ali", "", "forged", slots[1])), 401, "password_required")
 
-	body, _ := json.Marshal(voteReq)
-	httpReq := httptest.NewRequest("POST", "/api/v1/sessions/"+created.ID+"/vote", bytes.NewReader(body))
-	httpReq.Header.Set("Content-Type", "application/json")
+	// The token stands in for the password…
+	expectStatus(t, e.do(t, "POST", path, vote("Ali", "", aliToken, slots[1])), 200)
+	// …but only for the participant it was issued to.
+	expectError(t, e.do(t, "POST", path, vote("Sara", "", aliToken, slots[1])), 401, "password_required")
 
-	resp, err := app.Test(httpReq)
-	if err != nil {
-		t.Fatalf("Request failed: %v", err)
-	}
-
-	if resp.StatusCode != 200 {
-		buf := make([]byte, 1024)
-		n, _ := resp.Body.Read(buf)
-		t.Errorf("Expected status 200, got %d. Body: %s", resp.StatusCode, string(buf[:n]))
-	}
-
-	// Test Double Vote
-	httpReq2 := httptest.NewRequest("POST", "/api/v1/sessions/"+created.ID+"/vote", bytes.NewReader(body))
-	httpReq2.Header.Set("Content-Type", "application/json")
-
-	resp2, err := app.Test(httpReq2)
-	if err != nil {
-		t.Fatalf("Request failed: %v", err)
+	s := getSession(t, e, id)
+	for _, ts := range s.Timeslots {
+		for _, v := range ts.Votes {
+			if v.VoterName == "Ali" && ts.ID != slots[1] {
+				t.Fatal("Ali's old vote should have been replaced")
+			}
+		}
 	}
 
-	// Should fail or return error
-	if resp2.StatusCode != 500 { // We returned 500 for error in handler
-		t.Errorf("Expected status 500 for double vote, got %d", resp2.StatusCode)
+	// An empty list withdraws all votes.
+	expectStatus(t, e.do(t, "POST", path, vote("Ali", "secret", "")), 200)
+	for _, ts := range getSession(t, e, id).Timeslots {
+		for _, v := range ts.Votes {
+			if v.VoterName == "Ali" {
+				t.Fatal("Ali's votes should be withdrawn")
+			}
+		}
+	}
+}
+
+func TestVoteRejectsForeignTimeslot(t *testing.T) {
+	e := newEnv(t)
+	id, _ := createFixed(t, e)
+	_, otherSlots := createFixed(t, e)
+	expectError(t, e.do(t, "POST", "/api/v1/sessions/"+id+"/vote", vote("Ali", "", "", otherSlots[0])), 400, "invalid_input")
+	// Nothing was written: the name is still free.
+	expectStatus(t, e.do(t, "POST", "/api/v1/sessions/"+id+"/vote", vote("Ali", "", "")), 200)
+}
+
+func TestVoteOnUnknownSession(t *testing.T) {
+	e := newEnv(t)
+	expectError(t, e.do(t, "POST", "/api/v1/sessions/zzzzz/vote", vote("Ali", "", "")), 404, "session_not_found")
+}
+
+func TestVoteNameIsTrimmedAndRequired(t *testing.T) {
+	e := newEnv(t)
+	id, slots := createFixed(t, e)
+	path := "/api/v1/sessions/" + id + "/vote"
+	expectError(t, e.do(t, "POST", path, vote("   ", "", "", slots[0])), 400, "invalid_input")
+	expectStatus(t, e.do(t, "POST", path, vote(" Ali ", "", "", slots[0])), 200)
+	expectError(t, e.do(t, "POST", path, vote("Ali", "", "", slots[0])), 409, "name_taken_no_password")
+}
+
+// With WAL, busy_timeout and immediate transactions, simultaneous voters
+// queue for the write lock instead of failing with SQLITE_BUSY.
+func TestConcurrentVotes(t *testing.T) {
+	e := newEnv(t)
+	id, slots := createFixed(t, e)
+
+	const n = 30
+	errs := make(chan string, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			body, _ := json.Marshal(vote(fmt.Sprintf("voter-%d", i), "", "", slots...))
+			req := httptest.NewRequest("POST", "/api/v1/sessions/"+id+"/vote", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := e.app.Test(req, -1)
+			if err != nil {
+				errs <- err.Error()
+				return
+			}
+			if resp.StatusCode != 200 {
+				b, _ := io.ReadAll(resp.Body)
+				errs <- fmt.Sprintf("status %d: %s", resp.StatusCode, b)
+			}
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Error(err)
+	}
+	if got := len(getSession(t, e, id).Timeslots[0].Votes); got != n {
+		t.Fatalf("got %d votes, want %d", got, n)
 	}
 }
