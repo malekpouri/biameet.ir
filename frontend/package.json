@@ -1,12 +1,16 @@
 {
   "name": "biameet-frontend",
-  "version": "1.2.0",
-  "description": "Frontend for BiaMeet",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Frontend for BiaMeet (built into backend/web/dist and embedded in the Go binary)",
   "scripts": {
-    "build": "npx tailwindcss -i ./src/input.css -o ./dist/output.css --minify",
-    "watch": "npx tailwindcss -i ./src/input.css -o ./dist/output.css --watch"
+    "build": "node build.mjs",
+    "dev": "node build.mjs --watch"
   },
   "devDependencies": {
-    "tailwindcss": "^3.4.0"
+    "esbuild": "0.28.2",
+    "jalaali-js": "1.2.8",
+    "tailwindcss": "3.4.19",
+    "vazirmatn": "33.0.3"
   }
 }

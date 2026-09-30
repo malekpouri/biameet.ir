@@ -1,108 +1,107 @@
 package services
 
 import (
-	"database/sql"
-	"fmt"
 	"time"
 
 	"biameet.ir/db"
 	"biameet.ir/models"
 	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
 )
 
-func SubmitVote(sessionID string, req models.VoteRequest) error {
-	// 1. Validate Session exists
-	var exists bool
-	err := db.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?)", sessionID).Scan(&exists)
-	if err != nil {
-		return err
+// SubmitVote replaces the voter's votes in a session. An empty vote list
+// withdraws all of them. It returns a token the client can use to edit later.
+func SubmitVote(sessionID string, req models.VoteRequest) (string, error) {
+	var err error
+	if req.VoterName, err = checkText(req.VoterName, "نام", maxNameLen, true); err != nil {
+		return "", err
 	}
-	if !exists {
-		return fmt.Errorf("session not found")
+	if err := checkPassword(req.Password); err != nil {
+		return "", err
+	}
+	if len(req.Votes) > maxSessionSlots {
+		return "", invalid("تعداد رای‌ها بیش از حد مجاز است")
+	}
+	for i := range req.Votes {
+		if req.Votes[i].Note, err = checkText(req.Votes[i].Note, "یادداشت", maxNoteLen, false); err != nil {
+			return "", err
+		}
+	}
+
+	meta, err := loadSessionMeta(db.DB, sessionID)
+	if err != nil {
+		return "", err
+	}
+	if meta.Expired {
+		return "", ErrSessionExpired
+	}
+
+	hash, isNew, err := authorizeParticipant(sessionID, req.VoterName, req.Password, req.Token)
+	if err != nil {
+		return "", err
 	}
 
 	tx, err := db.DB.Begin()
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer tx.Rollback()
 
+	if err := recheckParticipant(tx, sessionID, req.VoterName, hash, isNew); err != nil {
+		return "", err
+	}
+
+	valid := map[string]bool{}
+	rows, err := tx.Query(`SELECT id FROM timeslots WHERE session_id = ?`, sessionID)
+	if err != nil {
+		return "", err
+	}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return "", err
+		}
+		valid[id] = true
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+
 	createdAt := time.Now().UTC().Format(time.RFC3339)
 
-	// 2. Handle Participant Logic
-	var storedHash sql.NullString
-	err = tx.QueryRow("SELECT password_hash FROM participants WHERE session_id = ? AND name = ?", sessionID, req.VoterName).Scan(&storedHash)
-
-	if err == sql.ErrNoRows {
-		// New participant
-		var hash sql.NullString
-		if req.Password != "" {
-			bytes, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-			if err != nil {
-				return err
-			}
-			hash.String = string(bytes)
-			hash.Valid = true
-		}
-
-		_, err = tx.Exec("INSERT INTO participants (session_id, name, password_hash, created_at_utc) VALUES (?, ?, ?, ?)",
+	if isNew {
+		_, err = tx.Exec(`INSERT INTO participants (session_id, name, password_hash, created_at_utc) VALUES (?, ?, ?, ?)`,
 			sessionID, req.VoterName, hash, createdAt)
-		if err != nil {
-			return err
-		}
-	} else if err != nil {
-		return err
 	} else {
-		// Existing participant
-		if storedHash.Valid && storedHash.String != "" {
-			// Password required
-			if req.Password == "" {
-				return fmt.Errorf("password_required") // Specific error for frontend to handle
-			}
-			err = bcrypt.CompareHashAndPassword([]byte(storedHash.String), []byte(req.Password))
-			if err != nil {
-				return fmt.Errorf("invalid_password") // Specific error
-			}
-		} else {
-			// User exists but has no password set.
-			// Prevent editing to avoid impersonation.
-			return fmt.Errorf("name_taken_no_password")
-		}
-
-		// Delete existing votes for this user in this session
 		_, err = tx.Exec(`
-			DELETE FROM votes 
-			WHERE voter_name = ? 
+			DELETE FROM votes
+			WHERE voter_name = ?
 			AND timeslot_id IN (SELECT id FROM timeslots WHERE session_id = ?)
 		`, req.VoterName, sessionID)
-		if err != nil {
-			return err
-		}
+	}
+	if err != nil {
+		return "", err
 	}
 
-	// 3. Insert New Votes
+	seen := map[string]bool{}
 	for _, item := range req.Votes {
-		// Validate Timeslot belongs to Session
-		var tsSessionID string
-		err := tx.QueryRow("SELECT session_id FROM timeslots WHERE id = ?", item.TimeslotID).Scan(&tsSessionID)
-		if err != nil {
-			return fmt.Errorf("invalid timeslot id: %s", item.TimeslotID)
+		if !valid[item.TimeslotID] {
+			return "", invalid("زمان انتخاب‌شده متعلق به این جلسه نیست یا حذف شده است")
 		}
-		if tsSessionID != sessionID {
-			return fmt.Errorf("timeslot %s does not belong to session %s", item.TimeslotID, sessionID)
+		if seen[item.TimeslotID] {
+			continue
 		}
-
-		voteID := uuid.New().String()
-		_, err = tx.Exec(`
-			INSERT INTO votes (id, timeslot_id, voter_name, note, created_at_utc)
-			VALUES (?, ?, ?, ?, ?)
-		`, voteID, item.TimeslotID, req.VoterName, item.Note, createdAt)
-
+		seen[item.TimeslotID] = true
+		_, err = tx.Exec(`INSERT INTO votes (id, timeslot_id, voter_name, note, created_at_utc) VALUES (?, ?, ?, ?, ?)`,
+			uuid.NewString(), item.TimeslotID, req.VoterName, item.Note, createdAt)
 		if err != nil {
-			return err
+			return "", err
 		}
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return "", err
+	}
+	return participantToken(sessionID, req.VoterName, hash.String), nil
 }

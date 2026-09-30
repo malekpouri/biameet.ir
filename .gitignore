@@ -8,7 +8,7 @@ lerna-debug.log*
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
-
+CLAUDE.md
 # Runtime data
 pids
 *.pid
@@ -80,7 +80,14 @@ out
 
 # Nuxt.js build / generate output
 .nuxt
-dist
+**/dist/*
+# Frontend build output embedded into the Go binary; the placeholder keeps go:embed compiling.
+!backend/web/dist/.gitkeep
+
+# Local SQLite databases
+*.db
+*.db-wal
+*.db-shm
 
 # Gatsby files
 .cache/

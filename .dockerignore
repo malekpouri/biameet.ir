@@ -1,0 +1,6 @@
+.git
+**/node_modules
+backend/web/dist
+**/*.db
+**/*.db-wal
+**/*.db-shm

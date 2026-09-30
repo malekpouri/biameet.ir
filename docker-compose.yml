@@ -1,26 +1,27 @@
-version: "3.8"
-
 services:
-  backend:
-    build:
-      context: .
-      dockerfile: docker/backend.Dockerfile
-    # ports:
-    #   - "8080:8080"
-    volumes:
-      - sqlite_data:/root/data
-    environment:
-      - PORT=8080
-      - DB_PATH=/root/data/biameet.db
-
-  frontend:
-    build:
-      context: .
-      dockerfile: docker/frontend.Dockerfile
+  app:
+    build: .
+    image: biameet:latest
+    restart: unless-stopped
     ports:
-      - "8085:80"
-    depends_on:
-      - backend
+      - "8085:8080"
+    volumes:
+      # Same named volume as before; it used to be mounted at /root/data.
+      - sqlite_data:/data
+    environment:
+      BASE_URL: https://biameet.ir
+      # The reverse proxy in front of this container passes the client IP here.
+      # Used only for rate limiting. Remove it if nothing sits in front of the app.
+      PROXY_HEADER: X-Forwarded-For
+      # Enables /admin. Set it in a .env file next to this compose file.
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+    read_only: true
+    mem_limit: 128m
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
 
 volumes:
   sqlite_data:
