@@ -16,17 +16,19 @@ COPY backend/go.mod backend/go.sum ./
 RUN go mod download
 COPY backend/ ./
 COPY --from=web /src/backend/web/dist ./web/dist
-ARG VERSION=2.0.0
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /biameet ./cmd \
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /biameet ./cmd \
+    && /biameet version \
     && mkdir /data
 
-# 3. Runtime: nothing but the binary, running unprivileged
+# 3. Runtime: nothing but the binary. It starts as root only to take ownership
+#    of /data (volumes from 1.x are root-owned), then switches to RUN_AS_UID
+#    before opening the database or serving anything.
 FROM scratch
 COPY --from=app /biameet /biameet
 COPY --from=app --chown=65534:65534 /data /data
-USER 65534:65534
 ENV PORT=8080 \
     DB_PATH=/data/biameet.db \
+    RUN_AS_UID=65534 \
     GOMEMLIMIT=48MiB
 EXPOSE 8080
 VOLUME /data

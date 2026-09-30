@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -16,11 +17,9 @@ import (
 	"biameet.ir/api"
 	"biameet.ir/db"
 	"biameet.ir/services"
+	"biameet.ir/version"
 	"biameet.ir/web"
 )
-
-// Overridden at build time with -ldflags "-X main.version=...".
-var version = "2.0.0"
 
 func env(key, def string) string {
 	if v := os.Getenv(key); v != "" {
@@ -31,6 +30,11 @@ func env(key, def string) string {
 
 func main() {
 	port := env("PORT", "8080")
+
+	if len(os.Args) > 1 && (os.Args[1] == "version" || os.Args[1] == "--version") {
+		fmt.Println(version.Version)
+		return
+	}
 
 	// `biameet healthcheck` lets the Docker HEALTHCHECK work in a scratch image (no curl).
 	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
@@ -44,7 +48,12 @@ func main() {
 
 	log.SetFlags(log.LstdFlags | log.LUTC)
 
+	log.Printf("biameet %s starting", version.Version)
+
 	dbPath := env("DB_PATH", "biameet.db")
+	if err := dropPrivileges(dbPath); err != nil {
+		log.Fatalf("privileges: %v", err)
+	}
 	if err := db.InitDB(dbPath); err != nil {
 		if strings.Contains(err.Error(), "readonly") || strings.Contains(err.Error(), "unable to open") {
 			log.Printf("hint: the process (uid %d) needs write access to %s and its directory", os.Getuid(), dbPath)
@@ -70,7 +79,7 @@ func main() {
 	site, err := web.New(web.Options{
 		Dir:     os.Getenv("WEB_DIR"),
 		BaseURL: env("BASE_URL", "https://biameet.ir"),
-		Version: version,
+		Version: version.Version,
 	})
 	if err != nil {
 		log.Fatalf("frontend: %v", err)
@@ -97,7 +106,7 @@ func main() {
 	defer stop()
 
 	go func() {
-		log.Printf("biameet %s listening on :%s", version, port)
+		log.Printf("biameet %s listening on :%s", version.Version, port)
 		if err := app.Listen(":" + port); err != nil {
 			log.Fatalf("server: %v", err)
 		}

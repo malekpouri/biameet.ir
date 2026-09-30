@@ -105,15 +105,18 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for details.
 
 ## Upgrading from 1.x
 
-Version 2 replaces the nginx + backend containers with a single container that runs as an unprivileged user and mounts the same `sqlite_data` volume at `/data`. Before the first start, give that user ownership of the existing database once:
+Version 2 replaces the nginx + backend containers with a single container that uses the same `sqlite_data` volume (now mounted at `/data`). Just pull and rebuild:
 
 ```bash
 docker compose down
-docker run --rm -v biameetir_sqlite_data:/data alpine chown -R 65534:65534 /data   # volume name: see `docker volume ls`
 docker compose up -d --build
 ```
 
-Existing data is kept; old migrations are detected and not re-run. If your reverse proxy pointed at the old nginx container on port 8085, nothing changes: the app is still published on 8085.
+On start the app takes ownership of `/data` (1.x left it owned by root), switches to an unprivileged user, and keeps all existing data; old migrations are detected and not re-run. It is still published on port 8085, so a reverse proxy in front needs no change.
+
+## Versioning
+
+The version lives in `backend/version/version.go`. It is shown in the page footer and startup log, returned by `GET /health`, and printed by `docker compose exec app /biameet version`.
 
 ## Branching Policy
 

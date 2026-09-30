@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"biameet.ir/version"
 	"biameet.ir/web"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
@@ -54,7 +55,7 @@ func NewApp(cfg Config) *fiber.App {
 	})
 
 	app.Get("/health", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{"status": "ok"})
+		return c.JSON(fiber.Map{"status": "ok", "version": version.Version})
 	})
 
 	v1 := app.Group("/api/v1", compress.New(compress.Config{Level: compress.LevelBestSpeed}))
