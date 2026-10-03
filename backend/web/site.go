@@ -32,8 +32,11 @@ type Options struct {
 	// Dir serves the frontend from disk and re-reads it on every request (development).
 	// Empty means use the files embedded in the binary.
 	Dir     string
-	BaseURL string // e.g. https://biameet.ir, no trailing slash
+	BaseURL string // e.g. https://www.biameet.ir, no trailing slash
 	Version string
+	// GoogleVerification is the token from Google Search Console's
+	// "HTML tag" verification method; rendered on the home page only.
+	GoogleVerification string
 }
 
 // Page describes one rendered HTML page.
@@ -104,6 +107,22 @@ func (s *Site) current() (*bundle, error) {
 	return load(os.DirFS(s.opts.Dir), false)
 }
 
+// The scratch image has no /etc/mime.types, so Go only knows a handful of
+// types. Everything we ship is listed here so nothing goes out as
+// application/octet-stream.
+var contentTypes = map[string]string{
+	".css":         "text/css; charset=utf-8",
+	".js":          "text/javascript; charset=utf-8",
+	".json":        "application/json",
+	".svg":         "image/svg+xml",
+	".png":         "image/png",
+	".ico":         "image/x-icon",
+	".woff2":       "font/woff2",
+	".webmanifest": "application/manifest+json",
+	".txt":         "text/plain; charset=utf-8",
+	".xml":         "application/xml; charset=utf-8",
+}
+
 var compressible = map[string]bool{
 	".js": true, ".css": true, ".svg": true, ".json": true, ".txt": true, ".xml": true, ".webmanifest": true,
 }
@@ -119,7 +138,10 @@ func load(fsys fs.FS, compress bool) (*bundle, error) {
 			return err
 		}
 		ext := path.Ext(p)
-		ctype := mime.TypeByExtension(ext)
+		ctype := contentTypes[ext]
+		if ctype == "" {
+			ctype = mime.TypeByExtension(ext)
+		}
 		if ctype == "" {
 			ctype = "application/octet-stream"
 		}
@@ -223,18 +245,20 @@ func send(c *fiber.Ctx, a *asset, cacheControl string) error {
 
 type pageData struct {
 	Page
-	BaseURL string
-	Version string
-	Year    int
+	BaseURL            string
+	Version            string
+	GoogleVerification string
+	Year               int
 }
 
 func (s *Site) render(b *bundle, p Page) ([]byte, error) {
 	var buf bytes.Buffer
 	err := b.tmpl.Execute(&buf, pageData{
-		Page:    p,
-		BaseURL: s.opts.BaseURL,
-		Version: s.opts.Version,
-		Year:    time.Now().Year(),
+		Page:               p,
+		BaseURL:            s.opts.BaseURL,
+		Version:            s.opts.Version,
+		GoogleVerification: s.opts.GoogleVerification,
+		Year:               time.Now().Year(),
 	})
 	return buf.Bytes(), err
 }

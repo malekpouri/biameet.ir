@@ -9,7 +9,12 @@ services:
       # Same named volume as before; it used to be mounted at /root/data.
       - sqlite_data:/data
     environment:
-      BASE_URL: https://biameet.ir
+      # Must be the final public address: the one the reverse proxy does NOT
+      # redirect away from (biameet.ir currently redirects to www). Canonical
+      # tags, the sitemap and link previews are built from it.
+      BASE_URL: https://www.biameet.ir
+      # Google Search Console → URL-prefix property → "HTML tag" → the content value.
+      GOOGLE_SITE_VERIFICATION: ${GOOGLE_SITE_VERIFICATION:-}
       # The reverse proxy in front of this container passes the client IP here.
       # Used only for rate limiting. Remove it if nothing sits in front of the app.
       PROXY_HEADER: X-Forwarded-For

@@ -78,8 +78,10 @@ func main() {
 
 	site, err := web.New(web.Options{
 		Dir:     os.Getenv("WEB_DIR"),
-		BaseURL: env("BASE_URL", "https://biameet.ir"),
+		BaseURL: env("BASE_URL", "https://www.biameet.ir"),
 		Version: version.Version,
+		// From Google Search Console → Add property → HTML tag (the content="…" value).
+		GoogleVerification: os.Getenv("GOOGLE_SITE_VERIFICATION"),
 	})
 	if err != nil {
 		log.Fatalf("frontend: %v", err)

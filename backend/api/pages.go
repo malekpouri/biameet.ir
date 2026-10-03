@@ -64,7 +64,7 @@ func notFound(c *fiber.Ctx, site *web.Site) error {
 }
 
 func RobotsHandler(site *web.Site) fiber.Handler {
-	body := "User-agent: *\nDisallow: /api/\nDisallow: /admin\n\nSitemap: " + site.BaseURL() + "/sitemap.xml\n"
+	body := "User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /admin\n\nSitemap: " + site.BaseURL() + "/sitemap.xml\n"
 	return func(c *fiber.Ctx) error {
 		c.Set(fiber.HeaderCacheControl, "public, max-age=86400")
 		c.Set(fiber.HeaderContentType, fiber.MIMETextPlainCharsetUTF8)
@@ -72,14 +72,24 @@ func RobotsHandler(site *web.Site) fiber.Handler {
 	}
 }
 
+// homeUpdated is the sitemap <lastmod> for the home page. Update it whenever
+// the indexable content (landing text, FAQ, title, description) changes, so
+// Google knows to recrawl; leave it alone for unrelated releases.
+const homeUpdated = "2026-10-03"
+
+// SitemapHandler lists the indexable pages. Session pages are private
+// invitations and deliberately absent (they are also noindex).
 func SitemapHandler(site *web.Site) fiber.Handler {
 	body := `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>` + site.BaseURL() + `/</loc><changefreq>monthly</changefreq><priority>1.0</priority></url>
+  <url>
+    <loc>` + site.BaseURL() + `/</loc>
+    <lastmod>` + homeUpdated + `</lastmod>
+  </url>
 </urlset>
 `
 	return func(c *fiber.Ctx) error {
-		c.Set(fiber.HeaderCacheControl, "public, max-age=86400")
+		c.Set(fiber.HeaderCacheControl, "public, max-age=3600")
 		c.Set(fiber.HeaderContentType, "application/xml; charset=utf-8")
 		return c.SendString(body)
 	}
