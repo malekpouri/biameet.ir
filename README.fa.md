@@ -79,6 +79,14 @@ docker compose up -d --build
 
 برنامه هنگام شروع، مالکیت `/data` را (که نسخه ۱ با کاربر root ساخته بود) درست می‌کند، سپس با کاربر غیر root ادامه می‌دهد. اطلاعات قبلی حفظ می‌شود و برنامه همچنان روی پورت 8085 در دسترس است.
 
+## موتورهای جستجو
+
+- فایل‌های `/sitemap.xml` و `/robots.txt` از روی `BASE_URL` ساخته می‌شوند؛ پس `BASE_URL` باید همان آدرس نهایی باشد که پروکسی از آن ریدایرکت نمی‌کند (فعلاً `https://www.biameet.ir`).
+- فقط صفحه اصلی قابل ایندکس است. صفحه جلسات، مدیریت و ۴۰۴ با `noindex` ارسال می‌شوند و در sitemap نیستند.
+- اگر nginx سرور خودش `/robots.txt` یا `/sitemap.xml` را پاسخ می‌دهد، آن را حذف کنید تا نسخه برنامه سرو شود.
+- هر وقت متن صفحه اصلی یا پرسش‌های متداول تغییر کرد، `homeUpdated` را در `backend/api/pages.go` به‌روز کنید.
+- در Google Search Console یک property از نوع URL prefix برای `BASE_URL` بسازید، روش **HTML tag** را انتخاب کنید، مقدار `content` را در `GOOGLE_SITE_VERIFICATION` (مثلاً در فایل `.env`) بگذارید، دوباره دیپلوی کنید، تأیید کنید و سپس `sitemap.xml` را ثبت کنید.
+
 ## نسخه
 
 نسخه برنامه در `backend/version/version.go` تعریف شده و در پانویس سایت، لاگ شروع، پاسخ `GET /health` و دستور `docker compose exec app /biameet version` نمایش داده می‌شود.

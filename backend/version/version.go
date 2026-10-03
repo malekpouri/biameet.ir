@@ -2,4 +2,4 @@
 package version
 
 // Version is shown in the page footer, the startup log, /health and `biameet version`.
-const Version = "2.0.1"
+const Version = "2.0.2"

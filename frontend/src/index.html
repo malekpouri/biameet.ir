@@ -7,6 +7,7 @@
   <meta name="description" content="{{.Description}}">
   {{if .NoIndex}}<meta name="robots" content="noindex, nofollow">{{end}}
   {{if .Path}}<link rel="canonical" href="{{.BaseURL}}{{.Path}}">{{end}}
+  {{if and .Home .GoogleVerification}}<meta name="google-site-verification" content="{{.GoogleVerification}}">{{end}}
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#2563eb" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#111827" media="(prefers-color-scheme: dark)">
@@ -26,7 +27,11 @@
   <meta name="twitter:description" content="{{.Description}}">
   <meta name="twitter:image" content="{{.BaseURL}}/og.png">
 
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/icon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
   <link rel="preload" href="{{asset "assets/vazirmatn.woff2"}}" as="font" type="font/woff2" crossorigin>
   <style>
     @font-face {
@@ -45,10 +50,28 @@
     "@context": "https://schema.org",
     "@graph": [
       {
+        "@type": "WebSite",
+        "@id": {{printf "%s/#website" .BaseURL}},
+        "url": {{printf "%s/" .BaseURL}},
+        "name": "بیا میت",
+        "alternateName": ["BiaMeet", "biameet.ir"],
+        "inLanguage": "fa",
+        "publisher": { "@id": {{printf "%s/#organization" .BaseURL}} }
+      },
+      {
+        "@type": "Organization",
+        "@id": {{printf "%s/#organization" .BaseURL}},
+        "name": "بیا میت",
+        "url": {{printf "%s/" .BaseURL}},
+        "logo": {{printf "%s/icon-512.png" .BaseURL}},
+        "sameAs": ["https://github.com/malekpouri/biameet.ir"]
+      },
+      {
         "@type": "WebApplication",
         "name": "بیا میت",
         "alternateName": "BiaMeet",
-        "url": {{.BaseURL}},
+        "url": {{printf "%s/" .BaseURL}},
+        "publisher": { "@id": {{printf "%s/#organization" .BaseURL}} },
         "description": {{.Description}},
         "applicationCategory": "BusinessApplication",
         "operatingSystem": "Web",

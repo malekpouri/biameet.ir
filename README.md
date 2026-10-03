@@ -55,7 +55,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for details.
 | --- | --- | --- |
 | `PORT` | `8080` | HTTP port |
 | `DB_PATH` | `biameet.db` (`/data/biameet.db` in Docker) | SQLite file |
-| `BASE_URL` | `https://biameet.ir` | Used for canonical URLs, Open Graph, sitemap |
+| `BASE_URL` | `https://www.biameet.ir` | Final public URL (no redirect after it); used for canonical URLs, Open Graph, sitemap |
+| `GOOGLE_SITE_VERIFICATION` | *(empty)* | Google Search Console "HTML tag" verification token |
 | `ADMIN_TOKEN` | *(empty: admin disabled)* | Token for `/admin` |
 | `PROXY_HEADER` | *(empty)* | Header carrying the client IP from your reverse proxy, e.g. `X-Forwarded-For` |
 | `WRITE_RATE_LIMIT` | `30` | Write requests per minute per IP (`0` disables) |
@@ -113,6 +114,14 @@ docker compose up -d --build
 ```
 
 On start the app takes ownership of `/data` (1.x left it owned by root), switches to an unprivileged user, and keeps all existing data; old migrations are detected and not re-run. It is still published on port 8085, so a reverse proxy in front needs no change.
+
+## Search engines
+
+- `/sitemap.xml` and `/robots.txt` are generated from `BASE_URL`, so `BASE_URL` must be the address your proxy does **not** redirect away from (currently `https://www.biameet.ir`).
+- Only the home page is indexable. Session, admin and 404 pages send `noindex` and are not in the sitemap.
+- If the reverse proxy answers `/robots.txt` or `/sitemap.xml` itself, remove that so the app's versions are served.
+- When the landing text or FAQ changes, update `homeUpdated` in `backend/api/pages.go` (the sitemap `<lastmod>`).
+- Google Search Console: add a URL-prefix property for `BASE_URL`, choose **HTML tag**, put the `content` value in `GOOGLE_SITE_VERIFICATION` (e.g. in `.env`), redeploy, verify, then submit `sitemap.xml`.
 
 ## Versioning
 

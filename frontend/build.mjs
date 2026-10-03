@@ -19,6 +19,13 @@ const statics = [
   ['src/index.html', 'index.html'],
   ['src/favicon.svg', 'favicon.svg'],
   ['src/og.png', 'og.png'],
+  // Icons: Google Search needs a raster favicon (multiple of 48px), browsers and
+  // crawlers request /favicon.ico and /apple-touch-icon.png directly.
+  ['src/favicon.ico', 'favicon.ico'],
+  ['src/apple-touch-icon.png', 'apple-touch-icon.png'],
+  ['src/icon-192.png', 'icon-192.png'],
+  ['src/icon-512.png', 'icon-512.png'],
+  ['src/site.webmanifest', 'site.webmanifest'],
   // Persian-only subset of the variable font (all weights in one ~48 KB file);
   // Latin text falls back to the system UI font.
   ['node_modules/vazirmatn/misc/Non-Latin/fonts/webfonts/Vazirmatn-NL[wght].woff2', 'assets/vazirmatn.woff2'],
